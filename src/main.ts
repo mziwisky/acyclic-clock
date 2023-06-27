@@ -120,7 +120,7 @@ class Minute {
 
 // TODO: obviously this will become an hour class
 const minutes: any = []
-const numMin = 60
+const numMin = 10
 for (let i = 0; i < numMin; i++) {
   let minute = new Minute(cX, cY + i*120)
   minutes.push(minute)
@@ -139,13 +139,13 @@ two.bind('update', function() {
   // animatedSecond.position.add(0.1,0)
 
   // TODO: the changes that have to be made here will probably tell me something important about the recursive abstraction that's going on.... maybe.... i dunno, just fix this.  won't be long before we have to start worrying about optimizations.
-  let progressThroughNMinuteSection = now % (numMin * 60000)
-  let numMinOn = Math.floor(progressThroughNMinuteSection / 60000)
-  for (let i = 0; i < numMinOn; i++) {
-    minutes[i].on()
-  }
-  minutes[numMinOn].update(progressThroughNMinuteSection) // TODO: is that right?
-  for (let i = numMinOn + 1; i < numMin; i++) {
-    minutes[i].off()
-  }
+  // let progressThroughNMinuteSection = now % (numMin * 60000)
+  // let numMinOn = Math.floor(progressThroughNMinuteSection / 60000)
+  // for (let i = 0; i < numMinOn; i++) {
+  //   minutes[i].on()
+  // }
+  // minutes[numMinOn].update(progressThroughNMinuteSection) // TODO: is that right?
+  // for (let i = numMinOn + 1; i < numMin; i++) {
+  //   minutes[i].off()
+  // }
 });
