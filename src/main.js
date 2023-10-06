@@ -1,4 +1,23 @@
 // import './style.css'
+//
+// age of universe: 13.7 billion years
+// heat death: 1.7e106 years
+//
+// DOWN 1000 ms -> 1 s
+// ACRS 60 s -> 1 min
+// DOWN 60 min -> 1 hr
+// ACRS 24 hr -> 1 day
+// DOWN 7 days -> 1 week
+// ACRS 52 weeks ~~ 1 year
+// DOWN 100 years -> 1 century
+// ACRS 10 centuries -> 1 millenium
+// DOWN 1000 milleniums -> 1 millions years
+// ACRS 1000 millions years -> 1 billions years
+// DOWN 1000 billions years -> 1 1e12 years
+// ACRS 1000 1e12 -> 1 1e15
+// DOWN -> 1e18
+// ACRS -> 1e21
+// ... are chunks of 1000 actually a good idea? Pixel 7 screen resolution is only 2400 × 1080... does that matter?
 
 import * as d3 from 'd3'
 import {tile as d3tile} from 'd3-tile'
