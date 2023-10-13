@@ -1,7 +1,9 @@
 // import './style.css'
 //
 // age of universe: 13.7 billion years
+// = 4.32e17 sec
 // heat death: 1.7e106 years
+// = 5.36e113 sec
 //
 // DOWN 1000 ms -> 1 s
 // ACRS 60 s -> 1 min
@@ -18,6 +20,18 @@
 // DOWN -> 1e18
 // ACRS -> 1e21
 // ... are chunks of 1000 actually a good idea? Pixel 7 screen resolution is only 2400 × 1080... does that matter?
+//
+// 4^14 = 268,435,456
+// meaning however many pixels i have in the most zoomed-in tile, i've got 268M times as many altogether.
+// a fully-zoomed-in tile is about 400px square on screen, or 160000 pixels
+// let's say fully zoomed in, i want to give a 1-second mark 20x120 pixels, plus side padding of 10 and bottom padding of 20. that's 30*140 = 4200 pixels, meaning i can get 38 of them into one tile. (this math isn't conservative enough, because i'm going to want more padding at longer time scales. SIGNIFICANTLY more, in fact. but it's a start.)
+// 38s per tile * 4^14 tiles = 1.02e10 sec.  not nearly enough for the age of the universe.  need 4.2e7 times as many tiles, i.e. 13 more layers.
+// now, given that the math isn't conservative enough, i might need WAY WAY more than that. but even if i just need 13 more layers, i think the current approach won't get me there.  i'm going to need a "resetting" approach, i.e. imagine starting fully zoomed out, then zooming all the way in to a 14th-level tile, then the bookkeeping "resets" to treat that thing (and all others at its level) like it's the fully-zoomed-out tile.  i need something like that.
+// man, this is making me realize just how difficult it is to comprehend the scale of the age of the universe.  it's going to be like 99.9999999999999999999999999999999999999999999...% already-filled-in pixels.  will zooming around even be interesting?  how will i label each individual second?  i guess there are only 17 digits needed, that's not that big of a deal.  i'll definitely want to render the full viewport, not just some 600x600 area canvas.  also HOLY SHIT if i do it to the heat death of the universe.... i think that needs to be a toggleable feature.  but without it, where does it end?  at the viewer's 100th birthday?  100 years from now?  the year 3000?
+// i think first draft might have to be just a linear plot of seconds.  or something.  i just don't know how to keep track of what "year" it was 1e16 seconds ago.  i guess i could use some kind of approximation.  but either way, when you zoom down to a second, each one will get labeled.
+//
+// [] toggle to display seconds as "true epoch seconds" vs modern calendar time.  true epoch seconds start with 0 at the big bang, and are currently up to something like 4.32e17 (i'll need to just decide on a mark for 1970-01-01 or whatever), and modern calendar time only gets rendered as far back as the birth of Earth.
+// [] toggle to change the end date.  50 years from now, year 3000, death of sun, or heat death of the universe.  each gives a different, interesting perspective.
 
 import * as d3 from 'd3'
 import {tile as d3tile} from 'd3-tile'
