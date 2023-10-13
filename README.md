@@ -9,3 +9,11 @@ Vite is awesome.
 ```
 npm run dev
 ```
+
+## Notes
+
+### Other possible names
+
+- universal clock
+- humanistic universal clock
+- entire clock
