@@ -72,7 +72,7 @@ const map = function() {
       .call(zoom)
       .call(zoom.transform, d3.zoomIdentity
         .translate(width >> 1, height >> 1)
-        .scale(1 << 8)); // <-- initial scale
+        .scale(1 << 22)); // <-- initial scale
 
   function zoomed(transform) {
     // console.log(transform)
@@ -105,13 +105,45 @@ const map = function() {
           .attr("x", "0.4em")
           .attr("y", "1.2em")
           .text(d => d.join("/")))
-        .call(g => g.append(d => circlesForDepth(d[2])))
+        .call(g => g.append(d => drawTile(...d)))
+        // .call(g => g.append(d => circlesForDepth(d[2])))
     );
   }
 
   // programatic scale, animates to the resulting zoom
   // svg.transition().call(zoom.scaleBy, 20)
   return svg.node();
+}
+
+const SEC_SIZE = [200, 200]
+const SEC_PAD = [0, 0]
+const TILE_SIZE = 256
+
+function drawTile(x,y,z) {
+  // TODO: starting to think that tiles are unnecessary.... maybe all i need is zoom/translate.
+  // i don't have multi-resolution jpegs here, i have dynamically generated bars.  at certain
+  // thresholds (empirically chosen, i think), i need to convalesce finer bars into coarser ones.
+  // but i don't think the abstraction of quad-tiles buys me anything.  in fact, it probably just
+  // makes things harder.  (though it did help out with my napkin math about how deep my zoom depth
+  // needed to go...)
+  const group = d3.create('svg:g')
+  if (z < 8) z = 8
+  const inv_depth = MAX_DEPTH - z
+  const scale = 2 ** inv_depth
+  const step = TILE_SIZE / scale
+
+  for (let i = 0; i < scale; i++) {
+    for (let j = 0; j < scale; j++) {
+      const x = SEC_PAD[0] / scale + step * i
+      const y = SEC_PAD[1] / scale + step * j
+      group.append('rect')
+        .attr('fill', 'black')
+        .attr('width', SEC_SIZE[0] / scale)
+        .attr('height', SEC_SIZE[1] / scale)
+        .attr('transform', `translate(${x}, ${y})`)
+    }
+  }
+  return group.node()
 }
 
 // TODO: right now this increases num of circles as you zoom in. actually want it to decrease that number.
