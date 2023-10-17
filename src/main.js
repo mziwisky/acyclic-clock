@@ -37,11 +37,46 @@
 import * as d3 from 'd3'
 import {tile as d3tile} from 'd3-tile'
 
-// trying to make https://observablehq.com/@d3/zoomable-tiles work, not sure how to do that without the Observable runtime...
-
 const width = 600
 const height = 600
 const MAX_DEPTH = 14 // empirically found, when scaleExtent is 1<<22
+
+// Drawing params
+const secondSize = [16, 128]
+const secondPadX = 2 // this is the limiting dimension.  may as well divide everything by 2 after i'm done w/ all this. OH BUT WAIT, if i add milliseconds, then msPadY will become limiting.
+const minutePadY = 8 // TODO: play w/ making this 8x secondPadX
+// minuteWidth = secondWidth * 60 + secondPadX * 59 = 1078
+// minuteHeight = secondHeight = 128
+const hourPadX = 64 // happens to be 8x minutePad
+// hourWidth = minuteWidth = 1078
+// hourHeight = minuteHeight * 60 + minutePadY * 59 = 8152
+const dayPadY = 536 // TODO: any good reason to make this (and the rest) a power of 2? NOTE: this is about 8x hourPadX
+// dayWidth = hourWidth * 24 + hourPadX * 23 = 27344
+// dayHeight = hourHeight = 8152
+// scaled-down day height = 76, pad = 5.  so real day pad = 5*(8152/76) =~ 536
+const weekPadX = 2574 // TODO: maybe 4x dayPadY??
+// weekWidth = dayWidth = 27344
+// weekHeight = dayHeight * 7 + dayPadY * 6 = 60280
+const yearPadY = 4 * weekPadX // 10296
+// yearWidth = weekWidth * 52 + weekPadX * 51 = 1553162
+// yearHeight = weekHeight = 60280
+const centuryPadX = 30 * yearPadY // 308880
+// centuryWidth = yearWidth = 1553162
+// centuryHeight = yearHeight * 100 + yearPadY * 99 = 7047304
+const milenniumPadY = 5 * centuryPadX // 1544400
+// milenniumWidth = centuryWidth * 10 + centuryPadX * 9 = 18311540
+// milenniumHeight = centuryHeight = 7047304
+const e5PadX = 5 * milenniumPadY // 7722000
+// e5Width = milenniumWidth = 18311540
+// e5Height = milenniumHeight * 100 + milenniumPadY * 99 = 1469208400
+const e7PadY = 5 * e5PadX // 38610000
+// e7Width = e5Width * 100 + e5PadX * 99 = 2595632000
+// e7Height = e5Height = 1469208400
+const e9PadX = 5 * e7PadY // 193050000
+// e9Width = e7Width = 2595632000
+// e9Height = e7Height * 100 + e7PadY * 99 = 150743230000
+// that gets us to the padding between "tallies" of 1BB years.  we need 13.7 of those, which gives a total canvas size of:
+// 38,848,498,000 x 150,743,230,000
 
 const map = function() {
   const svg = d3.create("svg")
@@ -51,7 +86,7 @@ const map = function() {
     .extent([[0, 0], [width, height]]); // <-- no clue what this does
 
   const zoom = d3.zoom()
-    .scaleExtent([1 << 8, 1 << 22]) // <-- scale extents. if you make the upper limit too high, e.g. 1<<28, then zooming in really deep gets "jittery". feels like, theoretically, there should be a way to "reset" the zoom after a certain depth to make in-zooming effectively infinite. but i probably don't need that capability for this project anyway.
+    .scaleExtent([1 << 0, 1 << 28]) // <-- scale extents. if you make the upper limit too high, e.g. 1<<28, then zooming in really deep gets "jittery". feels like, theoretically, there should be a way to "reset" the zoom after a certain depth to make in-zooming effectively infinite. but i probably don't need that capability for this project anyway.
     .extent([[0, 0], [width, height]]) // <-- no clue what this does
     .on("zoom", (event) => zoomed(event.transform));
 
@@ -69,9 +104,9 @@ const map = function() {
         .scale(1 << 22)); // <-- initial scale
 
   function zoomed(transform) {
-    // console.log(transform)
+    console.log(transform)
     const tiles = tiler(transform);
-    console.log(tiles)
+    // console.log(tiles)
     // `tiles` is an array of 3-element arrays (the 3 numbers that get rendered on each square)
     // `tiles` also has a `scale` property which, as you zoom in, gets bigger and bigger until
     // you cross the threshold that splits the map into more tiles, at which point scale snaps to
@@ -99,7 +134,7 @@ const map = function() {
           .attr("x", "0.4em")
           .attr("y", "1.2em")
           .text(d => d.join("/")))
-        .call(g => g.append(d => drawTile(...d)))
+        // .call(g => g.append(d => drawTile(...d)))
         // .call(g => g.append(d => circlesForDepth(d[2])))
     );
   }
@@ -177,6 +212,30 @@ function rot(n, x, y, rx, ry) {
   return [x, y];
 }
 
-const svg = map()
 const appDiv = document.getElementById('app')
+const svg = map()
 appDiv.appendChild(svg)
+
+// // nevermind the dumb little experiment down here. thought maybe i could draw a huge, fully-detailed scene on a canvas and then just render a "viewport canvas" that's zoomed into a small window of it, but while it works in theory for smaller scenes, it's absolutely nowhere near feasible.
+// const viewportCanvasWidth = 600
+// const viewportCanvasHeight = 600
+// const viewportCanvas = document.createElement('canvas')
+// viewportCanvas.setAttribute('width', viewportCanvasWidth)
+// viewportCanvas.setAttribute('height', viewportCanvasHeight)
+// viewportCanvas.setAttribute('style', 'border: 1px solid')
+//
+// const dataCanvas = document.createElement('canvas')
+// const dataCtx = dataCanvas.getContext("2d");
+// dataCanvas.setAttribute('width', viewportCanvasWidth)
+// dataCanvas.setAttribute('height', viewportCanvasHeight / 2)
+// const w = 10, h = 10, hp = 2, vp = 5
+// for (let i = 0; i < 100; i++) {
+//   for (let j = 0; j < 100; j++) {
+//     dataCtx.fillRect(i * (w+hp), j * (h + vp), w, h)
+//   }
+// }
+//
+// const viewportContext = viewportCanvas.getContext("2d");
+// viewportContext.drawImage(dataCanvas, 0, 0, 600, 600, 0, 0, viewportCanvasWidth, viewportCanvasHeight)
+//
+// appDiv.appendChild(viewportCanvas)
