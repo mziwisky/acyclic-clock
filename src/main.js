@@ -13,13 +13,13 @@
 // ACRS 52 weeks ~~ 1 year
 // DOWN 100 years -> 1 century
 // ACRS 10 centuries -> 1 millenium
-// DOWN 1000 milleniums -> 1 millions years
-// ACRS 1000 millions years -> 1 billions years
-// DOWN 1000 billions years -> 1 1e12 years
-// ACRS 1000 1e12 -> 1 1e15
-// DOWN -> 1e18
-// ACRS -> 1e21
-// ... are chunks of 1000 actually a good idea? Pixel 7 screen resolution is only 2400 × 1080... does that matter?
+// DOWN 100 milleniums -> 1e5 years
+// ACRS 100 1e5 years -> 1e7 years
+// DOWN 100 1e7 years -> 1e9 years
+// ACRS 100 1e9 -> 1e11 years (but age of universe is only 13.7 1e9 years.)
+// DOWN -> 1e13
+// ACRS -> 1e15
+// ... takes a LOT more layers to get to 1.7e106!
 //
 // 4^14 = 268,435,456
 // meaning however many pixels i have in the most zoomed-in tile, i've got 268M times as many altogether.
@@ -29,12 +29,6 @@
 // now, given that the math isn't conservative enough, i might need WAY WAY more than that. but even if i just need 13 more layers, i think the current approach won't get me there.  i'm going to need a "resetting" approach, i.e. imagine starting fully zoomed out, then zooming all the way in to a 14th-level tile, then the bookkeeping "resets" to treat that thing (and all others at its level) like it's the fully-zoomed-out tile.  i need something like that.
 // man, this is making me realize just how difficult it is to comprehend the scale of the age of the universe.  it's going to be like 99.9999999999999999999999999999999999999999999...% already-filled-in pixels.  will zooming around even be interesting?  how will i label each individual second?  i guess there are only 17 digits needed, that's not that big of a deal.  i'll definitely want to render the full viewport, not just some 600x600 area canvas.  also HOLY SHIT if i do it to the heat death of the universe.... i think that needs to be a toggleable feature.  but without it, where does it end?  at the viewer's 100th birthday?  100 years from now?  the year 3000?
 // i think first draft might have to be just a linear plot of seconds.  or something.  i just don't know how to keep track of what "year" it was 1e16 seconds ago.  i guess i could use some kind of approximation.  but either way, when you zoom down to a second, each one will get labeled.  NO!  i think the axis-alternating characteristic is a crucial one, because it means at whatever scale you're at, you can pan in either dimension and see sensible time steps.
-//
-// TODO EVENTUALLY:
-// [] toggle to display seconds as "true epoch seconds" vs modern calendar time.  true epoch seconds start with 0 at the big bang, and are currently up to something like 4.32e17 (i'll need to just decide on a mark for 1970-01-01 or whatever), and modern calendar time only gets rendered as far back as the birth of Earth? no, i think i'll render it back to the big bang, because it's more interesting to zoom in on a point far in the past and see it with a humanistic label of "feb 12, 321583828148343 BCE".  (i'll probably make some simplification of what a "year" or "week" or "month" is, e.g. maybe there's no feb 29s before the birth of the Earth.  might even want to make that kind of simplification for all time... because otherwise i need to decide some cutover, and whatever it is, it'll probably make everything harder if i don't have uniformity in my definitions of a given time span across the entire clock.  e.g. i'm imagining i'll need a function to map a zoomable tile coordinate like `[13412,2099,14]` to a window of time like `13 hours centered around the moment that's exactly 432153831243347 seconds ago`.  whatever i do here, make note of what it is and why i chose to do it in the "?" button mentioned below)
-// [] a "?" button that pops up information about different landmarks, my sources for them, and my decisions about where to place some of them (e.g. i'm going to have to choose a "true epoch second" for some modern-era date, so make note of that kind of thing)
-// [] toggle to change the end date.  50 years from now, year 3000, death of sun, or heat death of the universe.  each gives a different, interesting perspective.
-// [] button to snap (or actually fluidly zoom/pan) you back to the starting view, i.e. just today or just +/-1hr or whatever.  (might actually be really hard to do this?  does the "static frame of reference" actually need to be the starting scope, rather than the fully zoomed-out universal scale?)
 //
 // TODO NEXT:
 // [] make it, but only going back to like 10000 BCE and forward to 10000 CE
