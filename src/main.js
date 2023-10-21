@@ -31,8 +31,8 @@
 // i think first draft might have to be just a linear plot of seconds.  or something.  i just don't know how to keep track of what "year" it was 1e16 seconds ago.  i guess i could use some kind of approximation.  but either way, when you zoom down to a second, each one will get labeled.  NO!  i think the axis-alternating characteristic is a crucial one, because it means at whatever scale you're at, you can pan in either dimension and see sensible time steps.
 //
 // TODO NEXT:
-// [] make a demo that displays the [x0, y0, x1, y1] bounding box coordinates of the viewport, and lets it go out as far as the "total canvas size" below, and only in as far as 1 pixel per pixel.  this might just be https://observablehq.com/@d3/x-y-zoom?collection=@d3/d3-zoom -- not sure if the usage of d3-axis is necessary or not, but it might be the most efficient (assuming i can get current viewport bounds programmatically from each axis object?  i'll need those to do culling, and i'll need the scale to eventually decide what "resolution" of tallies to draw, but that's not part of this demo.)
-// [] 
+// [x] make a demo that displays the [x0, y0, x1, y1] bounding box coordinates of the viewport, and lets it go out as far as the "total canvas size" below, and only in as far as 1 pixel per pixel.  this might just be https://observablehq.com/@d3/x-y-zoom?collection=@d3/d3-zoom -- not sure if the usage of d3-axis is necessary or not, but it might be the most efficient (assuming i can get current viewport bounds programmatically from each axis object?  i'll need those to do culling, and i'll need the scale to eventually decide what "resolution" of tallies to draw, but that's not part of this demo.)
+// [ ] i did the display of the bounding box coordinates of the viewport, now do the bit above about the setting bounding limits to "total canvas size" and 1 pixel per pixel (no negative numbers, i guess)
 
 import * as d3 from 'd3'
 import {tile as d3tile} from 'd3-tile'

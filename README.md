@@ -10,6 +10,10 @@ Vite is awesome.
 npm run dev
 ```
 
+## TODO
+
+- [ ] tests?
+
 ## Notes
 
 ### Other possible names
