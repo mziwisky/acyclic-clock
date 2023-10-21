@@ -18,6 +18,14 @@ npm run dev
 - humanistic universal clock
 - entire clock
 - impractical clock
+- lifeismeaningless.fyi
+- youwillbedeadsoon.fyi
+- deathiscertain.fyi
+- timeisticking.fyi
+- yourdaysarenumbered.fyi
+- youarenoteternal.fyi
+- everysecondcounts.fyi
+- everysecond.fyi
 
 ### Ideas
 

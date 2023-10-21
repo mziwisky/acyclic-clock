@@ -31,7 +31,7 @@
 // i think first draft might have to be just a linear plot of seconds.  or something.  i just don't know how to keep track of what "year" it was 1e16 seconds ago.  i guess i could use some kind of approximation.  but either way, when you zoom down to a second, each one will get labeled.  NO!  i think the axis-alternating characteristic is a crucial one, because it means at whatever scale you're at, you can pan in either dimension and see sensible time steps.
 //
 // TODO NEXT:
-// [] make it, but only going back to like 10000 BCE and forward to 10000 CE
+// [] make a demo that displays the [x0, y0, x1, y1] bounding box coordinates of the viewport, and lets it go out as far as the "total canvas size" below, and only in as far as 1 pixel per pixel.  this might just be https://observablehq.com/@d3/x-y-zoom?collection=@d3/d3-zoom -- not sure if the usage of d3-axis is necessary or not, but it might be the most efficient (assuming i can get current viewport bounds programmatically from each axis object?  i'll need those to do culling, and i'll need the scale to eventually decide what "resolution" of tallies to draw, but that's not part of this demo.)
 // [] 
 
 import * as d3 from 'd3'
@@ -77,6 +77,143 @@ const e9PadX = 5 * e7PadY // 193050000
 // e9Height = e7Height * 100 + e7PadY * 99 = 150743230000
 // that gets us to the padding between "tallies" of 1BB years.  we need 13.7 of those, which gives a total canvas size of:
 // 38,848,498,000 x 150,743,230,000
+//
+//
+// https://observablehq.com/@fil/height#height <-- eventually might want that, to get (and be responsive to changes in?) the viewport height.
+//
+const simpleZoom = function() {
+  const randomX = d3.randomNormal(width / 2, 80);
+  const randomY = d3.randomNormal(height / 2, 80);
+  const data = Array.from({length: 2000}, () => [randomX(), randomY()]);
+
+  const svg = d3.create("svg")
+      .attr("viewBox", [0, 0, width, height]);
+
+  const circle = svg.selectAll("circle")
+    .data(data)
+    .join("circle")
+      .attr("transform", d => `translate(${d})`)
+      .attr("r", 1.5);
+
+  const k = height / width
+  const x = d3.scaleLinear()
+    .domain([-4.5, 4.5])
+    .range([0, width])
+  const y = d3.scaleLinear()
+    .domain([-4.5 * k, 4.5 * k])
+    .range([height, 0])
+
+  svg.call(d3.zoom()
+      .extent([[0, 0], [width, height]])
+      //.scaleExtent([1, 8])
+      .on("zoom", zoomed));
+
+  function zoomed({transform}) {
+    const xThing = transform.rescaleX(x)
+    const yThing = transform.rescaleY(y)
+    console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
+    console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
+    circle.attr("transform", d => `translate(${transform.apply(d)})`);
+  }
+
+  return svg.node();
+}
+
+const simpleZoomWithAxes = () => {
+  const width = 600, height = 480
+
+  const k = height / width
+  const x = d3.scaleLinear()
+    .domain([-4.5, 4.5])
+    .range([0, width])
+  const y = d3.scaleLinear()
+    .domain([-4.5 * k, 4.5 * k])
+    .range([height, 0])
+  // const z = d3.scaleOrdinal()
+  //   .domain(data.map(d => d[2]))
+  //   .range(d3.schemeCategory10)
+
+  const xAxis = (g, x) => g
+    .attr("transform", `translate(0,${height})`)
+    .call(d3.axisTop(x).ticks(12))
+    .call(g => g.select(".domain").attr("display", "none"))
+
+  const yAxis = (g, y) => g
+    .call(d3.axisRight(y).ticks(12 * k))
+    .call(g => g.select(".domain").attr("display", "none"))
+
+  const grid = (g, x, y) => g
+    .attr("stroke", "currentColor")
+    .attr("stroke-opacity", 0.1)
+    .call(g => g
+      .selectAll(".x")
+      .data(x.ticks(12))
+      .join(
+        enter => enter.append("line").attr("class", "x").attr("y2", height),
+        update => update,
+        exit => exit.remove()
+      )
+        .attr("x1", d => 0.5 + x(d))
+        .attr("x2", d => 0.5 + x(d)))
+    .call(g => g
+      .selectAll(".y")
+      .data(y.ticks(12 * k))
+      .join(
+        enter => enter.append("line").attr("class", "y").attr("x2", width),
+        update => update,
+        exit => exit.remove()
+      )
+        .attr("y1", d => 0.5 + y(d))
+        .attr("y2", d => 0.5 + y(d)));
+
+  const zoom = d3.zoom()
+      .scaleExtent([0.5, 32])
+      .on("zoom", zoomed);
+
+  const svg = d3.create("svg")
+      .attr("viewBox", [0, 0, width, height]);
+
+  const gx = svg.append("g");
+
+  const gy = svg.append("g");
+
+  const gGrid = svg.append("g");
+
+  svg.call(zoom).call(zoom.transform, d3.zoomIdentity);
+
+  // const gDot = svg.append("g")
+  //     .attr("fill", "none")
+  //     .attr("stroke-linecap", "round");
+
+  // gDot.selectAll("path")
+  //   .data(data)
+  //   .join("path")
+  //     .attr("d", d => `M${x(d[0])},${y(d[1])}h0`)
+  //     .attr("stroke", d => z(d[2]));
+
+
+  function zoomed({transform}) {
+    console.log(transform)
+    const zx = transform.rescaleX(x).interpolate(d3.interpolateRound);
+    const zy = transform.rescaleY(y).interpolate(d3.interpolateRound);
+    const xThing = transform.rescaleX(x)
+    const yThing = transform.rescaleY(y)
+    console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
+    console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
+    // gDot.attr("transform", transform).attr("stroke-width", 5 / transform.k);
+    gx.call(xAxis, zx);
+    gy.call(yAxis, zy);
+    gGrid.call(grid, zx, zy);
+  }
+
+  return Object.assign(svg.node(), {
+    reset() {
+      svg.transition()
+          .duration(750)
+          .call(zoom.transform, d3.zoomIdentity);
+    }
+  });
+}
 
 const map = function() {
   const svg = d3.create("svg")
@@ -213,7 +350,9 @@ function rot(n, x, y, rx, ry) {
 }
 
 const appDiv = document.getElementById('app')
-const svg = map()
+// const svg = map()
+const svg = simpleZoom()
+// const svg = simpleZoomWithAxes()
 appDiv.appendChild(svg)
 
 // // nevermind the dumb little experiment down here. thought maybe i could draw a huge, fully-detailed scene on a canvas and then just render a "viewport canvas" that's zoomed into a small window of it, but while it works in theory for smaller scenes, it's absolutely nowhere near feasible.
