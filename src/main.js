@@ -80,7 +80,125 @@ const e9PadX = 5 * e7PadY // 193050000
 //
 //
 // https://observablehq.com/@fil/height#height <-- eventually might want that, to get (and be responsive to changes in?) the viewport height.
-//
+
+function wat([x0,y0, x1,y1]) {
+  // give me a bounding box of the canvas.  i know the screen size (it may change over time).
+  // i'll return a description of what should be drawn.  e.g.:
+  // ...?
+  //
+  //let's say we're given a point, x,y.  we should be able to say... something, right?
+  //
+  //let's say we stop at years.  years are horizontal bars, stacked vertically, so we have a big huge vertical stack of years.
+  //let's say we have just 1000 years.  that's all of history.
+  //"canvas" size is yearWidth x (1000*yearHeight+999*yearPadY) = 1,553,162 x 368,851,120
+  //given a point, [50000, 500000]... what do we know? start w/ Y (because that's our coarsest grain, years). 500000/(yearHeight+yearPadY) = 500000/70576 = 7.08 = 7 R 5968
+  //then switch axis to X -- 50000/(weekWidth+weekPadX) = 50000/29918 = 1.67123471 = 1 R 20082
+  //so so far, 7 years 1 week and change.  now to days with the Y-remainder:
+  //5968/(dayHeight+dayPadY) = 5968/8688 = 0 R 5968
+  //X-remainder: 20082/(hourWidth+hourPadX) = 20082/1142 = 17.58 = 17 R 668
+  //7 years, 1 week, 0 days, 17 hours
+  //Y-remainder: 5968/(minuteHeight+minutePadY) = 5968/136 = 43.88235294 = 43 R 120
+  //X-remaincer: 668/(secondWidth+secondPadX) = 668/18 = 37.11111111 = 37 R 2
+  //7 years, 1 week, 0 days, 17 hours, 43 minutes, 37 seconds.
+  //This is the second tally that we're "at" (i.e., its top-left corner is the nearest one that's above and left of us)
+  //
+  //ok, so i'm going to end up with 4 such numbers, one for each corner of the bounding box... then what?
+  //then i have to decide what tallies get drawn, and where they get drawn.
+  //the top-left and bottom-right corners dictate upper and lower bounds of tallies to consider, but there could be
+  //a huge timespan there, even if we're zoomed in far, because we could be zoomed in to, e.g., a millenium boundary.
+  //the "k" value should tell us what resolution we're dealing with (once i empirically pick an appropriate mapping of k to resolution)
+  //or i suppose i could infer it from the bounding box, too.  in fact, that plus screen size
+  //should allow me to do something smart.  e.g. if i've got 360000 pixels of screen and i'm trying to render 360000 pixels of canvas, then i'm gonna be drawing seconds.  but at 40000 pixels of screen and 360000 pixels of canvas, i might only be drawing down to minutes or hours.
+}
+
+
+class Geometry {
+  #dims = []
+
+  constructor(secWidth, secHeight, secPad) {
+    this.#dims.push({
+      name: 'second',
+      rollupCnt: null,
+      width: secWidth,
+      height: secHeight,
+      pad: secPad,
+      sizeWithPad: secWidth + secPad,
+      axis: 'x', // the axis along which we step to draw each tally
+    })
+  }
+
+  addDimension(name, rollupCnt, pad) {
+    const newDim = { name, rollupCnt, pad }
+    const last = this.lastDim
+    if (last.axis === 'x') {
+      newDim.axis = 'y'
+      newDim.width = last.width * rollupCnt + last.pad * (rollupCnt - 1)
+      newDim.height = last.height
+      newDim.sizeWithPad = newDim.height + pad
+    } else {
+      newDim.axis = 'x'
+      newDim.width = last.width
+      newDim.height = last.height * rollupCnt + last.pad * (rollupCnt - 1)
+      newDim.sizeWithPad = newDim.width + pad
+    }
+    this.#dims.push(newDim)
+  }
+
+  get lastDim() {
+    return this.#dims[this.#dims.length - 1]
+  }
+
+  nearestSecond(x, y) {
+    const result = []
+    const remainder = { x, y }
+    for (let i = this.#dims.length-1; i >= 0; i--) {
+      const dim = this.#dims[i]
+      // TODO: how should i handle non-ints?
+      // TODO: how should i handle negative nums?  probably throw exception... i want upper-left of canvas to be considered 0,0
+      // TODO: is retular math sufficient for such large numbers, or do i have to use a bigint lib or decimal lib or something?
+      // TODO: does it matter if my remainder ever hits exactly 0? (maybe... write tests!)
+      // TODO: does it matter if i end up in the padding or not? (probably not)
+      // console.log("dim", dim.name, dim.axis, dim.sizeWithPad)
+      const newRem = remainder[dim.axis] % dim.sizeWithPad
+      result.push({
+        axis: dim.axis,
+        name: dim.name,
+        count: (remainder[dim.axis] - newRem) / dim.sizeWithPad,
+      })
+      remainder[dim.axis] = newRem
+    }
+    return result
+  }
+
+  printableNearestSecond(x, y) {
+    const segments = []
+    let nonZeroFound = false
+    for (let seg of this.nearestSecond(x, y)) {
+      if (nonZeroFound || seg.count > 0) {
+        nonZeroFound = true
+        segments.push(`${seg.count} ${seg.name}`)
+      }
+    }
+    return segments.join(', ')
+  }
+}
+
+
+const geo = new Geometry(16, 128, 2)
+geo.addDimension('minute', 60, 8)
+geo.addDimension('hour', 60, 64)
+geo.addDimension('day', 24, 536)
+geo.addDimension('week', 7, 2574)
+geo.addDimension('year', 52, geo.lastDim.pad * 4)
+geo.addDimension('century', 100, geo.lastDim.pad * 30)
+geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
+geo.addDimension('e5', 100, geo.lastDim.pad * 5)
+geo.addDimension('e7', 100, geo.lastDim.pad * 5)
+geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+
+console.log(geo.printableNearestSecond(50000, 500000))
+
+
 const simpleZoom = function() {
   const randomX = d3.randomNormal(width / 2, 80);
   const randomY = d3.randomNormal(height / 2, 80);
@@ -97,11 +215,11 @@ const simpleZoom = function() {
 
   const k = height / width
   const x = d3.scaleLinear()
-    .domain([-4.5, 4.5])
+    .domain([0, 10])
     .range([0, width])
   const y = d3.scaleLinear()
-    .domain([-4.5 * k, 4.5 * k])
-    .range([height, 0])
+    .domain([0 * k, 10 * k])
+    .range([0, height])
 
   svg.call(d3.zoom()
       .extent([[0, 0], [width, height]])
@@ -111,8 +229,18 @@ const simpleZoom = function() {
   function zoomed({transform}) {
     const xThing = transform.rescaleX(x)
     const yThing = transform.rescaleY(y)
-    console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
-    console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
+    // console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
+    // console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
+    const p0int = [
+      Math.max(0, Math.trunc(xThing.invert(0))),
+      Math.max(0, Math.trunc(yThing.invert(0))),
+    ]
+    const p1int = [
+      Math.max(0, Math.trunc(xThing.invert(width))),
+      Math.max(0, Math.trunc(yThing.invert(height))),
+    ]
+    console.log("P0:", geo.printableNearestSecond(...p0int))
+    console.log("P1:", geo.printableNearestSecond(...p1int))
     circle.attr("transform", d => `translate(${transform.apply(d)})`);
   }
 

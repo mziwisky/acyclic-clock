@@ -30,6 +30,8 @@ npm run dev
 - youarenoteternal.fyi
 - everysecondcounts.fyi
 - everysecond.fyi
+- finitude.space
+- youarefinite.fyi
 
 ### Ideas
 
