@@ -157,9 +157,11 @@ class Geometry {
       // TODO: how should i handle negative nums?  probably throw exception... i want upper-left of canvas to be considered 0,0
       // TODO: is retular math sufficient for such large numbers, or do i have to use a bigint lib or decimal lib or something?
       // TODO: does it matter if my remainder ever hits exactly 0? (maybe... write tests!)
-      // TODO: does it matter if i end up in the padding or not? (probably not)
+      // TODO: does it matter if i end up in the padding or not? IT DOES!  i can get weird-sounding results like "5 hour, 61 minute, 19 second" because the empty space after the 60th minute is quite large, because it's REALLY the padding for days, i.e. you can fit several more minutes-with-padding in there. (see gimp day-of-seconds file for example, notice you could fit about 4 second-tallies in the hour padding space.) so i think if i get a resul like "62 minute (y-remainder = Y)", i want to actually modify that to "60 minute (y-remainder = Y + 2*minuteSizeWithPad)".  i wonder if this is only a problem with seconds and minutes, because they're the smallest dims in each axis, or if it's all the way up the stack? ANS: all the way up the stack.  i played around and saw a "53 week".
       // console.log("dim", dim.name, dim.axis, dim.sizeWithPad)
       const newRem = remainder[dim.axis] % dim.sizeWithPad
+      // const count = (remainder[dim.axis] - newRem) / dim.sizeWithPad
+      // console.log(remainder[dim.axis], '/', dim.sizeWithPad, '=', count, 'R', newRem)
       result.push({
         axis: dim.axis,
         name: dim.name,
@@ -167,6 +169,9 @@ class Geometry {
       })
       remainder[dim.axis] = newRem
     }
+    // TODO: if this result included the remainder, then i think we'd be able to know exactly
+    // where to draw that second.  i.e. it would tell us exactly where the given point is in
+    // relation to that second tally's upper-left corner.
     return result
   }
 
@@ -196,7 +201,8 @@ geo.addDimension('e5', 100, geo.lastDim.pad * 5)
 geo.addDimension('e7', 100, geo.lastDim.pad * 5)
 geo.addDimension('e9', 100, geo.lastDim.pad * 5)
 
-console.log(geo.printableNearestSecond(50000, 500000))
+// console.log(geo.printableNearestSecond(50000, 500000))
+console.log(geo.printableNearestSecond(6067, 8312))
 
 
 const simpleZoom = function() {
@@ -239,8 +245,17 @@ const simpleZoom = function() {
       Math.max(0, Math.trunc(xThing.invert(width))),
       Math.max(0, Math.trunc(yThing.invert(height))),
     ]
-    console.log("P0:", geo.printableNearestSecond(...p0int))
-    console.log("P1:", geo.printableNearestSecond(...p1int))
+    console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
+    console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
+    // TODO: get nearest second for lower-left and upper-right corners, too.
+    // use those to calculate how many second tallies are in the bounding box.
+    // should be a pretty quick calc, i think... i'm sure there's some algorithm
+    // i can come up with to "understand" when we do things like skip across a
+    // century pad or an e5 pad, etc.  the total number of second tallies might be
+    // useful in deciding whether to just print minutes, or hours, or days, etc.
+    // it's probably not the ONLY useful number, maybe not even the most significant
+    // number, but it might weigh into that decision.  (i think the most useful one
+    // will just be canvas area in pixels compared to viewport pixels)
     circle.attr("transform", d => `translate(${transform.apply(d)})`);
   }
 
