@@ -144,12 +144,26 @@ class Geometry {
     this.#dims.push(newDim)
   }
 
+  get dims() {
+    return this.#dims // TODO: clone?
+  }
+
   get lastDim() {
     return this.#dims[this.#dims.length - 1]
   }
 
+  locationOf(sec) {
+    const len = this.#dims.length
+    const result = { x: 0, y: 0 }
+    for (let sIdx = 0, dIdx = len - 1; sIdx < len; sIdx++, dIdx--) {
+      const dim = this.#dims[dIdx]
+      result[dim.axis] += sec[sIdx] * dim.sizeWithPad
+    }
+    return result
+  }
+
   nearestSecond(x, y) {
-    const result = []
+    const second = []
     const remainder = { x, y }
     for (let i = this.#dims.length-1; i >= 0; i--) {
       const dim = this.#dims[i]
@@ -162,29 +176,59 @@ class Geometry {
       const newRem = remainder[dim.axis] % dim.sizeWithPad
       // const count = (remainder[dim.axis] - newRem) / dim.sizeWithPad
       // console.log(remainder[dim.axis], '/', dim.sizeWithPad, '=', count, 'R', newRem)
-      result.push({
-        axis: dim.axis,
-        name: dim.name,
-        count: (remainder[dim.axis] - newRem) / dim.sizeWithPad,
-      })
+      second.push((remainder[dim.axis] - newRem) / dim.sizeWithPad)
       remainder[dim.axis] = newRem
     }
-    // TODO: if this result included the remainder, then i think we'd be able to know exactly
-    // where to draw that second.  i.e. it would tell us exactly where the given point is in
-    // relation to that second tally's upper-left corner.
-    return result
+    return { second, remainder }
   }
 
   printableNearestSecond(x, y) {
+    const nearest = this.nearestSecond(x, y)
+    const values = nearest.second
     const segments = []
     let nonZeroFound = false
-    for (let seg of this.nearestSecond(x, y)) {
-      if (nonZeroFound || seg.count > 0) {
+    for (let i = 0; i < this.#dims.length; i++) {
+      if (nonZeroFound || values[i] > 0) {
         nonZeroFound = true
-        segments.push(`${seg.count} ${seg.name}`)
+        const dim = this.#dims[this.#dims.length - 1 - i]
+        segments.push(`${values[i]} ${dim.name}`)
       }
     }
+    segments.push(`remainder (${nearest.remainder.x}, ${nearest.remainder.y})`)
     return segments.join(', ')
+  }
+
+  // sec1 < sec2 ==> -1
+  // sec1 = sec2 ==> 0
+  // sec1 > sec2 ==> 1
+  compare(sec1, sec2) {
+    for (let i = 0; i < sec1.length; i++) {
+      if (sec1[i] < sec2[i]) return -1
+      if (sec1[i] > sec2[i]) return 1
+    }
+    return 0
+  }
+
+  *secondsBetween(sec1, sec2) {
+    let s = sec1
+    while (this.compare(s, sec2) <= 0) {
+      yield s
+      s = this.increment(s)
+    }
+  }
+
+  increment(sec) {
+    const newSec = [...sec]
+    const len = this.#dims.length
+    for (let dimIdx = 0, secIdx = len - 1; dimIdx < len; dimIdx++, secIdx--) {
+      const nextDim = this.#dims[dimIdx+1]
+      newSec[secIdx]++
+      if (nextDim === undefined || newSec[secIdx] < nextDim.rollupCnt) {
+        break
+      }
+      newSec[secIdx] = 0
+    }
+    return newSec
   }
 }
 
@@ -208,23 +252,26 @@ console.log(geo.printableNearestSecond(6067, 8312))
 const simpleZoom = function() {
   const randomX = d3.randomNormal(width / 2, 80);
   const randomY = d3.randomNormal(height / 2, 80);
-  const data = Array.from({length: 2000}, () => [randomX(), randomY()]);
+  // const data = Array.from({length: 2000}, () => [randomX(), randomY()]);
 
   const svg = d3.create("svg")
       .attr("viewBox", [0, 0, width, height]);
 
-  const circle = svg.selectAll("circle")
-    .data(data)
-    .join("circle")
-      .attr("transform", d => `translate(${d})`)
-      .attr("r", 1.5);
+  // const circle = svg.selectAll("circle")
+  //   .data(data)
+  //   .join("circle")
+  //     .attr("transform", d => `translate(${d})`)
+  //     .attr("r", 1.5);
+
+  let talliesGroup = svg.append("g")
+  let tallies = talliesGroup.selectAll('rect')
 
   const k = height / width
   const x = d3.scaleLinear()
-    .domain([0, 10])
+    .domain([0, width])
     .range([0, width])
   const y = d3.scaleLinear()
-    .domain([0 * k, 10 * k])
+    .domain([0 * k, height * k])
     .range([0, height])
 
   svg.call(d3.zoom()
@@ -238,15 +285,46 @@ const simpleZoom = function() {
     // console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
     // console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
     const p0int = [
-      Math.max(0, Math.trunc(xThing.invert(0))),
-      Math.max(0, Math.trunc(yThing.invert(0))),
+      Math.trunc(xThing.invert(0)),
+      Math.trunc(yThing.invert(0)),
     ]
     const p1int = [
-      Math.max(0, Math.trunc(xThing.invert(width))),
-      Math.max(0, Math.trunc(yThing.invert(height))),
+      Math.trunc(xThing.invert(width)),
+      Math.trunc(yThing.invert(height)),
     ]
     console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
     console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
+
+    const firstSec = geo.nearestSecond(...p0int)
+    const lastSec = geo.nearestSecond(...p1int)
+
+    // for (let s of geo.secondsBetween(firstSec.second, lastSec.second)) {
+    //   console.log(s)
+    // }
+    const secs = [...geo.secondsBetween(firstSec.second, lastSec.second)]
+    console.log(`num seconds: ${secs.length}`)
+
+    tallies = tallies.data(secs, d => d)
+      .join(enter => enter.append('g')
+        .attr('transform', sec => { const l = geo.locationOf(sec); return `translate(${l.x}, ${l.y})` })
+        .call(g => g.append('rect')
+          .attr('fill', 'black')
+          .attr('width', geo.dims[0].width)
+          .attr('height', geo.dims[0].height))
+        .call(rect => rect.append('text')
+          .attr('style', 'transform: rotate(90deg) scale(0.6) translate(5px, -7px)')
+          .attr('fill', 'yellow')
+          .text(d => d))
+      )
+
+    // TODO: firstSec.remainder probably factors into the translate somehow. maybe involving something like:
+    const tRem = transform.translate(firstSec.remainder.x, firstSec.remainder.y)
+    console.log('tRem',tRem)
+    // talliesGroup.attr("transform", `scale(${transform.k}) translate(${tRem.x},${tRem.y})`)
+    talliesGroup.attr("transform", `scale(${transform.k}) translate(${transform.x},${transform.y})`)
+    // talliesGroup.attr("transform", `scale(${transform.k})`)
+
+
     // TODO: get nearest second for lower-left and upper-right corners, too.
     // use those to calculate how many second tallies are in the bounding box.
     // should be a pretty quick calc, i think... i'm sure there's some algorithm
@@ -256,7 +334,8 @@ const simpleZoom = function() {
     // it's probably not the ONLY useful number, maybe not even the most significant
     // number, but it might weigh into that decision.  (i think the most useful one
     // will just be canvas area in pixels compared to viewport pixels)
-    circle.attr("transform", d => `translate(${transform.apply(d)})`);
+
+    // circle.attr("transform", d => `translate(${transform.apply(d)})`);
   }
 
   return svg.node();
