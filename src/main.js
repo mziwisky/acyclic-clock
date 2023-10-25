@@ -250,18 +250,8 @@ console.log(geo.printableNearestSecond(6067, 8312))
 
 
 const simpleZoom = function() {
-  const randomX = d3.randomNormal(width / 2, 80);
-  const randomY = d3.randomNormal(height / 2, 80);
-  // const data = Array.from({length: 2000}, () => [randomX(), randomY()]);
-
   const svg = d3.create("svg")
       .attr("viewBox", [0, 0, width, height]);
-
-  // const circle = svg.selectAll("circle")
-  //   .data(data)
-  //   .join("circle")
-  //     .attr("transform", d => `translate(${d})`)
-  //     .attr("r", 1.5);
 
   let talliesGroup = svg.append("g")
   let tallies = talliesGroup.selectAll('rect')
@@ -274,10 +264,24 @@ const simpleZoom = function() {
     .domain([0 * k, height * k])
     .range([0, height])
 
-  svg.call(d3.zoom()
-      .extent([[0, 0], [width, height]])
-      //.scaleExtent([1, 8])
-      .on("zoom", zoomed));
+  const zoom = d3.zoom()
+    .extent([[0, 0], [width, height]])
+    //.scaleExtent([1, 8])
+    .on("zoom", zoomed)
+
+  svg
+    .call(zoom)
+    .call(zoom.transform, d3.zoomIdentity)
+  // to set a new initial zoom, change the above line to something like:
+  // .call(zoom.transform, d3.zoomIdentity
+  //   .translate(someX, someY)
+  //   .scale(someScale))
+  // TODO: this breaks at large translations, e.g.:
+  //   .call(zoom.transform, d3.zoomIdentity.translate(-10000000,-1000000000))
+  // so i'm probably going to have to figure out some kind of "wrapping" at some point.
+  // shit, and it'll probably break at very small scales (i.e. zoomed out), too. maybe d3-tile
+  // really will save my ass... maybe i need to map the full "canvas" onto a quadtree of tiles.
+  // that shouldn't be too hard, i suppose.  just figure out the math.
 
   function zoomed({transform}) {
     const xThing = transform.rescaleX(x)
@@ -317,12 +321,10 @@ const simpleZoom = function() {
           .text(d => d))
       )
 
-    // TODO: firstSec.remainder probably factors into the translate somehow. maybe involving something like:
-    const tRem = transform.translate(firstSec.remainder.x, firstSec.remainder.y)
-    console.log('tRem',tRem)
-    // talliesGroup.attr("transform", `scale(${transform.k}) translate(${tRem.x},${tRem.y})`)
-    talliesGroup.attr("transform", `scale(${transform.k}) translate(${transform.x},${transform.y})`)
-    // talliesGroup.attr("transform", `scale(${transform.k})`)
+    // TODO: firstSec.remainder probably factors into the translate somehow.... right?  or not? maybe involving something like:
+    // const tRem = transform.translate(firstSec.remainder.x, firstSec.remainder.y)
+    // console.log('tRem',tRem)
+    talliesGroup.attr("transform", transform)
 
 
     // TODO: get nearest second for lower-left and upper-right corners, too.
@@ -334,8 +336,6 @@ const simpleZoom = function() {
     // it's probably not the ONLY useful number, maybe not even the most significant
     // number, but it might weigh into that decision.  (i think the most useful one
     // will just be canvas area in pixels compared to viewport pixels)
-
-    // circle.attr("transform", d => `translate(${transform.apply(d)})`);
   }
 
   return svg.node();
