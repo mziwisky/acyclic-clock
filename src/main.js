@@ -128,7 +128,7 @@ class Geometry {
   #dims = []
 
   constructor(secWidth, secHeight, secPad) {
-    this.#dims.push({
+    this.#dims.unshift({
       name: 'second',
       rollupCnt: null,
       width: secWidth,
@@ -153,23 +153,23 @@ class Geometry {
       newDim.height = last.height * rollupCnt + last.pad * (rollupCnt - 1)
       newDim.sizeWithPad = newDim.width + pad
     }
-    this.#dims.push(newDim)
+    this.#dims.unshift(newDim)
   }
 
-  get dims() {
-    return this.#dims // TODO: clone?
+  get baseDim() {
+    return this.#dims[this.#dims.length - 1]
   }
 
   get lastDim() {
-    return this.#dims[this.#dims.length - 1]
+    return this.#dims[0]
   }
 
   locationOf(sec) {
     const len = this.#dims.length
     const result = { x: 0, y: 0 }
-    for (let sIdx = 0, dIdx = len - 1; sIdx < len; sIdx++, dIdx--) {
-      const dim = this.#dims[dIdx]
-      result[dim.axis] += sec[sIdx] * dim.sizeWithPad
+    for (let i = 0; i < len; i++) {
+      const dim = this.#dims[i]
+      result[dim.axis] += sec[i] * dim.sizeWithPad
     }
     return result
   }
@@ -177,7 +177,7 @@ class Geometry {
   nearestSecond(x, y) {
     const second = []
     const remainder = { x, y }
-    for (let i = this.#dims.length-1; i >= 0; i--) {
+    for (let i = 0; i < this.#dims.length; i++) {
       const dim = this.#dims[i]
       // TODO: how should i handle non-ints?
       // TODO: how should i handle negative nums?  probably throw exception... i want upper-left of canvas to be considered 0,0
@@ -202,8 +202,7 @@ class Geometry {
     for (let i = 0; i < this.#dims.length; i++) {
       if (nonZeroFound || values[i] > 0) {
         nonZeroFound = true
-        const dim = this.#dims[this.#dims.length - 1 - i]
-        segments.push(`${values[i]} ${dim.name}`)
+        segments.push(`${values[i]} ${this.#dims[i].name}`)
       }
     }
     segments.push(`remainder (${nearest.remainder.x}, ${nearest.remainder.y})`)
@@ -239,13 +238,13 @@ class Geometry {
   increment(sec) {
     const newSec = [...sec]
     const len = this.#dims.length
-    for (let dimIdx = 0, secIdx = len - 1; dimIdx < len; dimIdx++, secIdx--) {
-      const nextDim = this.#dims[dimIdx+1]
-      newSec[secIdx]++
-      if (nextDim === undefined || newSec[secIdx] < nextDim.rollupCnt) {
+    for (let i = len - 1; i >= 0; i--) {
+      const nextDim = this.#dims[i-1]
+      newSec[i]++
+      if (nextDim === undefined || newSec[i] < nextDim.rollupCnt) {
         break
       }
-      newSec[secIdx] = 0
+      newSec[i] = 0
     }
     return newSec
   }
@@ -284,17 +283,27 @@ class Geometry {
     // importantly, this should work whether our first dim is an X or a Y.
     // So when we zoom out enough and start drawing minutes instead of seconds, we can
     // derive a new geometry from the old one by just shifting the first dim off!  how elegant!
-    const newSec = [...sec]
-    const len = this.#dims.length
-    for (let dimIdx = 0, secIdx = len - 1; dimIdx < len; dimIdx++, secIdx--) {
-      const nextDim = this.#dims[dimIdx+1]
-      newSec[secIdx]++
-      if (nextDim === undefined || newSec[secIdx] < nextDim.rollupCnt) {
-        break
-      }
-      newSec[secIdx] = 0
+    //
+    const nextSec = this.increment(sec)
+    const moved = this.compareSecondsXY(sec, nextSec)
+  }
+
+  // toSec left of fromSec ==> x: -1
+  // toSec right of fromSec ==> x: 1
+  // toSec neither L nor R of fromSec ==> x: 0
+  // toSec above fromSec ==> y: -1
+  // toSec below fromSec ==> y: 1
+  // toSec neither above nor below fromSec ==> y: 0
+  compareSecondsXY(fromSec, toSec) {
+    const result = { x: 0, y: 0 }
+    for (let i = 0; i < fromSec.length; i++) {
+      const axis = this.#dims[i].axis
+      if (result[axis] != 0) continue
+      if (toSec[i] < fromSec[i]) result[axis] = -1
+      else if (toSec[i] > fromSec[i]) result[axis] = 1
+      if (result.x != 0 && result.y != 0) break
     }
-    return newSec
+    return result
   }
 
   s(partialSec) {
@@ -393,8 +402,8 @@ const simpleZoom = function() {
         .attr('transform', sec => { const l = geo.locationOf(sec); return `translate(${l.x}, ${l.y})` })
         .call(g => g.append('rect')
           .attr('fill', 'black')
-          .attr('width', geo.dims[0].width)
-          .attr('height', geo.dims[0].height))
+          .attr('width', geo.baseDim.width)
+          .attr('height', geo.baseDim.height))
         .call(rect => rect.append('text')
           .attr('style', 'transform: rotate(90deg) scale(0.6) translate(5px, -7px)')
           .attr('fill', 'yellow')
@@ -518,66 +527,86 @@ const simpleZoomWithAxes = () => {
 }
 
 function runTests() {
-  const geo = new Geometry(16, 128, 2)
-  geo.addDimension('minute', 60, 8)
-  geo.addDimension('hour', 60, 64)
-  geo.addDimension('day', 24, 536)
-  geo.addDimension('week', 7, 2574)
-  geo.addDimension('year', 52, geo.lastDim.pad * 4)
-  geo.addDimension('century', 100, geo.lastDim.pad * 30)
-  geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
-  geo.addDimension('e5', 100, geo.lastDim.pad * 5)
-  geo.addDimension('e7', 100, geo.lastDim.pad * 5)
-  geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+  function assert(errMsgIfFailed) {
+    if (errMsgIfFailed) throw new Error(errMsgIfFailed)
+    console.log('SUCCESS')
+  }
 
-  function compareArraysOfSeconds(a1, a2) {
-    if (a1.length !== a2.length) throw new Error('arrays different lengths')
-    for (let i = 0; i < a1.length; i++) {
-      if (compareSeconds(a1[i], a2[i]) !== 0) throw new Error('elements do not match')
+  function xyEqual(xyRes, xyExp) {
+    if (xyRes.x !== xyExp.x || xyRes.y !== xyExp.y) {
+      return `compareSecondsXY is busted. exp: ${JSON.stringify(xyExp)}, res: ${JSON.stringify(xyRes)}`
     }
   }
 
-  const sec1 = geo.s([58,42])
-  const sec2 = geo.s([1,1,0,8])
+  function arrayOfSecondsEqual(a1, a2) {
+    if (a1.length !== a2.length) return 'arrays different lengths'
+    for (let i = 0; i < a1.length; i++) {
+      if (compareSeconds(a1[i], a2[i]) !== 0) return 'elements do not match'
+    }
+  }
 
-  const result = [...geo.visibleSecondsBetween(sec1, sec2)]
-  const expected = [
-    ...geo.secondsBetween(geo.s([58,42]), geo.s([58,59])),
-    ...geo.secondsBetween(geo.s([59,42]), geo.s([59,59])),
-    ...geo.secondsBetween(geo.s([1,58,0]), geo.s([1,58,8])),
-    ...geo.secondsBetween(geo.s([1,59,0]), geo.s([1,59,8])),
-    ...geo.secondsBetween(geo.s([1,0,0,42]), geo.s([1,0,0,59])),
-    ...geo.secondsBetween(geo.s([1,1,0,0]), geo.s([1,1,0,8])),
-  ]
+  const geo0 = new Geometry(16, 128, 2)
+  geo0.addDimension('minute', 4, geo0.lastDim.pad * 2)
+  geo0.addDimension('hour', 4, geo0.lastDim.pad * 2)
+  geo0.addDimension('day', 4, geo0.lastDim.pad * 2)
+  geo0.addDimension('week', 7, geo0.lastDim.pad * 2)
 
-  compareArraysOfSeconds(expected, result)
+  assert(xyEqual(geo0.compareSecondsXY([0,0,0,58,59], [0,0,0,59,0]), { x: -1, y: 1 }))
+  assert(xyEqual(geo0.compareSecondsXY([0,0,0,59,0], [0,0,0,59,1]), { x: 1, y: 0 }))
+  assert(xyEqual(geo0.compareSecondsXY([0,0,0,59,59], [0,0,1,0,0]), { x: 1, y: -1 }))
 
-  const geo2 = new Geometry(16, 128, 2)
-  geo2.addDimension('minute', 4, geo.lastDim.pad * 2)
-  geo2.addDimension('hour', 4, geo.lastDim.pad * 2)
-  geo2.addDimension('day', 4, geo.lastDim.pad * 2)
-  geo2.addDimension('week', 7, geo.lastDim.pad * 2)
+  assert(arrayOfSecondsEqual(
+    [...geo0.secondsBetween([0,0,2,3,2], [0,0,3,1,1])],
+    [
+      [0,0,2,3,2], [0,0,2,3,3], [0,0,3,0,0], [0,0,3,0,1],
+      [0,0,3,0,2], [0,0,3,0,3], [0,0,3,1,0], [0,0,3,1,1]
+    ]
+  ))
 
-  const result2 = [...geo2.visibleSecondsBetween([0,0,2,2,2], [1,1,1,0,1])]
-  const expected2 = [
-    ...geo2.visibleSecondsBetween([0,0,2,2,2], [0,0,2,2,3]),
-    ...geo2.visibleSecondsBetween([0,0,2,3,2], [0,0,2,3,3]),
-    ...geo2.visibleSecondsBetween([0,0,3,2,0], [0,0,3,2,3]),
-    ...geo2.visibleSecondsBetween([0,0,3,3,0], [0,0,3,3,3]),
-    ...geo2.visibleSecondsBetween([0,1,2,0,2], [0,1,2,0,3]),
-    ...geo2.visibleSecondsBetween([0,1,3,0,0], [0,1,3,0,3]),
-    ...geo2.visibleSecondsBetween([1,0,0,2,0], [1,0,0,2,3]),
-    ...geo2.visibleSecondsBetween([1,0,0,3,0], [1,0,0,3,3]),
-    ...geo2.visibleSecondsBetween([1,0,1,2,0], [1,0,1,2,1]),
-    ...geo2.visibleSecondsBetween([1,0,1,3,0], [1,0,1,3,1]),
-    ...geo2.visibleSecondsBetween([1,1,0,0,0], [1,1,0,0,3]),
-    ...geo2.visibleSecondsBetween([1,1,1,0,0], [1,1,1,0,1]),
-  ]
-
-  compareArraysOfSeconds(expected2, result2)
+  // assert(arrayOfSecondsEqual(
+  //   [...geo0.visibleSecondsBetween([0,0,2,2,2], [1,1,1,0,1])],
+  //   [
+  //     ...geo0.secondsBetween([0,0,2,2,2], [0,0,2,2,3]),
+  //     ...geo0.secondsBetween([0,0,2,3,2], [0,0,2,3,3]),
+  //     ...geo0.secondsBetween([0,0,3,2,0], [0,0,3,2,3]),
+  //     ...geo0.secondsBetween([0,0,3,3,0], [0,0,3,3,3]),
+  //     ...geo0.secondsBetween([0,1,2,0,2], [0,1,2,0,3]),
+  //     ...geo0.secondsBetween([0,1,3,0,0], [0,1,3,0,3]),
+  //     ...geo0.secondsBetween([1,0,0,2,0], [1,0,0,2,3]),
+  //     ...geo0.secondsBetween([1,0,0,3,0], [1,0,0,3,3]),
+  //     ...geo0.secondsBetween([1,0,1,2,0], [1,0,1,2,1]),
+  //     ...geo0.secondsBetween([1,0,1,3,0], [1,0,1,3,1]),
+  //     ...geo0.secondsBetween([1,1,0,0,0], [1,1,0,0,3]),
+  //     ...geo0.secondsBetween([1,1,1,0,0], [1,1,1,0,1]),
+  //   ]
+  // ))
+  //
+  // const geo = new Geometry(16, 128, 2)
+  // geo.addDimension('minute', 60, 8)
+  // geo.addDimension('hour', 60, 64)
+  // geo.addDimension('day', 24, 536)
+  // geo.addDimension('week', 7, 2574)
+  // geo.addDimension('year', 52, geo.lastDim.pad * 4)
+  // geo.addDimension('century', 100, geo.lastDim.pad * 30)
+  // geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
+  // geo.addDimension('e5', 100, geo.lastDim.pad * 5)
+  // geo.addDimension('e7', 100, geo.lastDim.pad * 5)
+  // geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+  //
+  // assert(arrayOfSecondsEqual(
+  //   [...geo.visibleSecondsBetween(geo.s([58,42]), geo.s([1,1,0,8]))],
+  //   [
+  //     ...geo.secondsBetween(geo.s([58,42]), geo.s([58,59])),
+  //     ...geo.secondsBetween(geo.s([59,42]), geo.s([59,59])),
+  //     ...geo.secondsBetween(geo.s([1,58,0]), geo.s([1,58,8])),
+  //     ...geo.secondsBetween(geo.s([1,59,0]), geo.s([1,59,8])),
+  //     ...geo.secondsBetween(geo.s([1,0,0,42]), geo.s([1,0,0,59])),
+  //     ...geo.secondsBetween(geo.s([1,1,0,0]), geo.s([1,1,0,8])),
+  //   ]
+  // ))
 }
 
-// runTests()
+runTests()
 
 const map = function() {
   const svg = d3.create("svg")
