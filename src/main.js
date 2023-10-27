@@ -124,11 +124,26 @@ function compareSeconds(sec1, sec2) {
   return 0
 }
 
+function maxSecond(sec1, sec2) {
+  if (compareSeconds(sec1, sec2) < 0) return sec2
+  return sec1
+}
+
+function minSecond(sec1, sec2) {
+  if (compareSeconds(sec1, sec2) < 0) return sec1
+  return sec2
+}
+
+// simple elementwise sum, assumes arrays are same length
+function sumElements(arr1, arr2) {
+  return arr1.map((val, idx) => val + arr2[idx])
+}
+
 class Geometry {
   #dims = []
 
   constructor(secWidth, secHeight, secPad) {
-    this.#dims.unshift({
+    const baseDim = {
       name: 'second',
       rollupCnt: null,
       width: secWidth,
@@ -136,7 +151,8 @@ class Geometry {
       pad: secPad,
       sizeWithPad: secWidth + secPad,
       axis: 'x', // the axis along which we step to draw each tally
-    })
+    }
+    this.#dims.unshift(baseDim)
   }
 
   addDimension(name, rollupCnt, pad) {
@@ -218,27 +234,50 @@ class Geometry {
   }
 
   *visibleSecondsBetween(sec1, sec2) {
-    // e.g.: 58,42 --> 1,1,0,8 (all more significant digits are zeroes)
-    // should get:
-    //   58,42 -> 58,59
-    //   59,42 -> 59,59
-    //   1,58,0 -> 1,58,8
-    //   1,59,0 -> 1,59,8
-    //   1,0,0,42 -> 1,0,0,59
-    //   1,1,0,0 -> 1,1,0,8
-    //
-    //   TIME TO WRITE SOME TESTS!
+    const leftBound = this.xs(sec1)
+    const rightBound = this.xs(sec2)
+    const lowerBound = this.ys(sec2)
+
     let s = sec1
-    while (compareSeconds(s, sec2) <= 0) {
+    while (true) {
       yield s
-      s = this.incrementWithGeometricBounds(s, sec1, sec2)
+      s = this.incrementX(s)
+      if (!s || this.compareSecondsXY(rightBound, s).x > 0) { // jump to next line down
+        s = sumElements(leftBound, this.ys(this.incrementY(s)))
+        if (!s || this.compareSecondsXY(lowerBound, s).y > 0) break
+      }
     }
+  }
+
+  incrementInAxis(axis, sec) {
+    const newSec = [...sec]
+    for (let i = this.#dims.length - 1, j = 0; i >= 0; i--, j++) {
+      if (this.#dims[i].axis != axis) continue
+      const nextDim = this.#dims[i-1]
+      const nextAlignedDim = this.#dims[i-2]
+      newSec[i]++
+      if (nextDim === undefined || newSec[i] < nextDim.rollupCnt) {
+        break
+      }
+      if (!nextAlignedDim) {
+        return null
+      }
+      newSec[i] = 0
+    }
+    return newSec
+  }
+
+  incrementX(sec) {
+    return this.incrementInAxis('x', sec)
+  }
+
+  incrementY(sec) {
+    return this.incrementInAxis('y', sec)
   }
 
   increment(sec) {
     const newSec = [...sec]
-    const len = this.#dims.length
-    for (let i = len - 1; i >= 0; i--) {
+    for (let i = this.#dims.length - 1; i >= 0; i--) {
       const nextDim = this.#dims[i-1]
       newSec[i]++
       if (nextDim === undefined || newSec[i] < nextDim.rollupCnt) {
@@ -247,45 +286,6 @@ class Geometry {
       newSec[i] = 0
     }
     return newSec
-  }
-
-  // e.g.: ([59,59], [58,42], [1,1,0,8]) -> [1,58,0] NOT [1,0,0]
-  //
-  // e.g.: ([1,58,8], [58,42], [1,1,0,8]) -> [1,59,0] NOT [1,58,9]
-  //
-  // e.g.: ([1,59,8], [58,42], [1,1,0,8]) -> [1,0,0,42] NOT [1,59,9]
-  //
-  // e.g.: ([1,0,0,59], [58,42], [1,1,0,8]) -> [1,1,0,0] NOT [1,0,1,0]
-  incrementWithGeometricBounds(sec, bound0, bound1) {
-    // so, i think define left edge by "masking" all bound0 X dims,
-    // define right edge by masking all bound1 X dims,
-    // define top edge by masking all bound0 Y dims,
-    // define bottom edge by masking all bound1 Y dims.
-    // every time you increment the second, you can tell which way you've moved by comparing the X and Y dims of the original second to those of the new second.  if the new one has higher X dims and same Y dims, you've moved right.  if the new one has lower X dims and higher Y dims, you've moved left and down.  in general, all 8 combinations are possible (L, UL, U, UR, R, DR, D, DL). whenever you move left, you must clamp yourself to the left edge, i.e. take the rightmost (or Math.max) of the new spot and the left edge.  when you move right, clamp yourself to the right edge, i.e. take the leftmost (or Math.min) of the new spot and the right edge.  similarly for up and down.
-    //
-    // e.g.: ([0,0,59,59], [0,0,58,42], [1,1,0,8])
-    // left edge is [X,0,X,42], right is [X,1,X,8]
-    // top edge is [0,X,58,X], bottom is [1,X,0,X]
-    // natural increment of [0,0,59,59] is [0,1,0,0]
-    // that's a movement UP, from [0,X,59,X] to [0,X,0,X], i.e. [0,59] to [0,0]
-    //            and RIGHT, from [X,0,X,59] to [X,1,X,0], i.e. [0,59] to [1,0]
-    // since it's UP, we clamp it to the top edge, i.e. take MAX of the Y dims,
-    // and since it's RIGHT, we clamp it to the right edge, i.e. take MIN of the X dims.
-    // ergo, MAX([0,X,58,X], [0,X,0,X]) + MIN([X,1,X,8], [X,1,X,0])
-    //      = [0,X,58,X] + [X,1,X,0]
-    //      = [0,1,58,0]
-    //
-    // I think my first implementation should work exactly like this, but then i might look for an
-    // optimization, because i suspect comparing and clamping on every single increment is suboptimal.
-    // e.g. maybe a cheaper comparison before the increment can tell you which way to increment?
-    // i dunno, maybe not. maybe this really is as good as it gets.
-    //
-    // importantly, this should work whether our first dim is an X or a Y.
-    // So when we zoom out enough and start drawing minutes instead of seconds, we can
-    // derive a new geometry from the old one by just shifting the first dim off!  how elegant!
-    //
-    const nextSec = this.increment(sec)
-    const moved = this.compareSecondsXY(sec, nextSec)
   }
 
   // toSec left of fromSec ==> x: -1
@@ -304,6 +304,18 @@ class Geometry {
       if (result.x != 0 && result.y != 0) break
     }
     return result
+  }
+
+  project(axis, sec) {
+    return sec.map((val, i) => this.#dims[i].axis === axis ? val : 0)
+  }
+
+  xs(sec) {
+    return this.project('x', sec)
+  }
+
+  ys(sec) {
+    return this.project('y', sec)
   }
 
   s(partialSec) {
@@ -394,7 +406,7 @@ const simpleZoom = function() {
     // for (let s of geo.secondsBetween(firstSec.second, lastSec.second)) {
     //   console.log(s)
     // }
-    const secs = [...geo.secondsBetween(firstSec.second, lastSec.second)]
+    const secs = [...geo.visibleSecondsBetween(firstSec.second, lastSec.second)]
     console.log(`num seconds: ${secs.length}`)
 
     tallies = tallies.data(secs, d => d)
@@ -538,10 +550,15 @@ function runTests() {
     }
   }
 
+  function secondsEqual(s1, s2) {
+    if (compareSeconds(s1, s2) !== 0) return `seconds differ: ${JSON.stringify(s1)} <> ${JSON.stringify(s2)}`
+  }
+
   function arrayOfSecondsEqual(a1, a2) {
     if (a1.length !== a2.length) return 'arrays different lengths'
     for (let i = 0; i < a1.length; i++) {
-      if (compareSeconds(a1[i], a2[i]) !== 0) return 'elements do not match'
+      const errRes = secondsEqual(a1[i], a2[i])
+      if (errRes) return errRes
     }
   }
 
@@ -563,47 +580,64 @@ function runTests() {
     ]
   ))
 
-  // assert(arrayOfSecondsEqual(
-  //   [...geo0.visibleSecondsBetween([0,0,2,2,2], [1,1,1,0,1])],
-  //   [
-  //     ...geo0.secondsBetween([0,0,2,2,2], [0,0,2,2,3]),
-  //     ...geo0.secondsBetween([0,0,2,3,2], [0,0,2,3,3]),
-  //     ...geo0.secondsBetween([0,0,3,2,0], [0,0,3,2,3]),
-  //     ...geo0.secondsBetween([0,0,3,3,0], [0,0,3,3,3]),
-  //     ...geo0.secondsBetween([0,1,2,0,2], [0,1,2,0,3]),
-  //     ...geo0.secondsBetween([0,1,3,0,0], [0,1,3,0,3]),
-  //     ...geo0.secondsBetween([1,0,0,2,0], [1,0,0,2,3]),
-  //     ...geo0.secondsBetween([1,0,0,3,0], [1,0,0,3,3]),
-  //     ...geo0.secondsBetween([1,0,1,2,0], [1,0,1,2,1]),
-  //     ...geo0.secondsBetween([1,0,1,3,0], [1,0,1,3,1]),
-  //     ...geo0.secondsBetween([1,1,0,0,0], [1,1,0,0,3]),
-  //     ...geo0.secondsBetween([1,1,1,0,0], [1,1,1,0,1]),
-  //   ]
-  // ))
-  //
-  // const geo = new Geometry(16, 128, 2)
-  // geo.addDimension('minute', 60, 8)
-  // geo.addDimension('hour', 60, 64)
-  // geo.addDimension('day', 24, 536)
-  // geo.addDimension('week', 7, 2574)
-  // geo.addDimension('year', 52, geo.lastDim.pad * 4)
-  // geo.addDimension('century', 100, geo.lastDim.pad * 30)
-  // geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
-  // geo.addDimension('e5', 100, geo.lastDim.pad * 5)
-  // geo.addDimension('e7', 100, geo.lastDim.pad * 5)
-  // geo.addDimension('e9', 100, geo.lastDim.pad * 5)
-  //
-  // assert(arrayOfSecondsEqual(
-  //   [...geo.visibleSecondsBetween(geo.s([58,42]), geo.s([1,1,0,8]))],
-  //   [
-  //     ...geo.secondsBetween(geo.s([58,42]), geo.s([58,59])),
-  //     ...geo.secondsBetween(geo.s([59,42]), geo.s([59,59])),
-  //     ...geo.secondsBetween(geo.s([1,58,0]), geo.s([1,58,8])),
-  //     ...geo.secondsBetween(geo.s([1,59,0]), geo.s([1,59,8])),
-  //     ...geo.secondsBetween(geo.s([1,0,0,42]), geo.s([1,0,0,59])),
-  //     ...geo.secondsBetween(geo.s([1,1,0,0]), geo.s([1,1,0,8])),
-  //   ]
-  // ))
+  assert(secondsEqual(sumElements([0,20,3,5], [0,1,0,15]), [0,21,3,20]))
+
+  assert(secondsEqual(maxSecond([0,0,58,0], [0,0,0,0]), [0,0,58,0]))
+  assert(secondsEqual(minSecond([0,1,0,8], [0,1,0,0]), [0,1,0,0]))
+
+  assert(secondsEqual(geo0.incrementX([1,1,1,1,1]), [1,1,1,1,2]))
+  assert(secondsEqual(geo0.incrementX([1,1,1,1,3]), [1,1,2,1,0]))
+  assert(secondsEqual(geo0.incrementX([1,1,3,1,3]), [2,1,0,1,0]))
+
+  assert(secondsEqual(geo0.incrementY([1,1,1,1,1]), [1,1,1,2,1]))
+  assert(secondsEqual(geo0.incrementY([1,1,1,3,1]), [1,2,1,0,1]))
+  assert(geo0.incrementY([1,6,1,3,1]) && 'incrementY is busted')
+
+  assert(arrayOfSecondsEqual(
+    [...geo0.visibleSecondsBetween([0,0,2,2,2], [1,1,1,0,1])],
+    [
+      ...geo0.secondsBetween([0,0,2,2,2], [0,0,2,2,3]),
+      ...geo0.secondsBetween([0,0,3,2,0], [0,0,3,2,3]),
+      ...geo0.secondsBetween([1,0,0,2,0], [1,0,0,2,3]),
+      ...geo0.secondsBetween([1,0,1,2,0], [1,0,1,2,1]),
+
+      ...geo0.secondsBetween([0,0,2,3,2], [0,0,2,3,3]),
+      ...geo0.secondsBetween([0,0,3,3,0], [0,0,3,3,3]),
+      ...geo0.secondsBetween([1,0,0,3,0], [1,0,0,3,3]),
+      ...geo0.secondsBetween([1,0,1,3,0], [1,0,1,3,1]),
+
+      ...geo0.secondsBetween([0,1,2,0,2], [0,1,2,0,3]),
+      ...geo0.secondsBetween([0,1,3,0,0], [0,1,3,0,3]),
+      ...geo0.secondsBetween([1,1,0,0,0], [1,1,0,0,3]),
+      ...geo0.secondsBetween([1,1,1,0,0], [1,1,1,0,1]),
+    ]
+  ))
+
+  const geo = new Geometry(16, 128, 2)
+  geo.addDimension('minute', 60, 8)
+  geo.addDimension('hour', 60, 64)
+  geo.addDimension('day', 24, 536)
+  geo.addDimension('week', 7, 2574)
+  geo.addDimension('year', 52, geo.lastDim.pad * 4)
+  geo.addDimension('century', 100, geo.lastDim.pad * 30)
+  geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
+  geo.addDimension('e5', 100, geo.lastDim.pad * 5)
+  geo.addDimension('e7', 100, geo.lastDim.pad * 5)
+  geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+
+  assert(arrayOfSecondsEqual(
+    [...geo.visibleSecondsBetween(geo.s([58,42]), geo.s([1,1,0,8]))],
+    [
+      ...geo.secondsBetween(geo.s([58,42]), geo.s([58,59])),
+      ...geo.secondsBetween(geo.s([1,58,0]), geo.s([1,58,8])),
+
+      ...geo.secondsBetween(geo.s([59,42]), geo.s([59,59])),
+      ...geo.secondsBetween(geo.s([1,59,0]), geo.s([1,59,8])),
+
+      ...geo.secondsBetween(geo.s([1,0,0,42]), geo.s([1,0,0,59])),
+      ...geo.secondsBetween(geo.s([1,1,0,0]), geo.s([1,1,0,8])),
+    ]
+  ))
 }
 
 runTests()
