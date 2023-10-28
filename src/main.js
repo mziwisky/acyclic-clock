@@ -28,11 +28,6 @@
 // 38s per tile * 4^14 tiles = 1.02e10 sec.  not nearly enough for the age of the universe.  need 4.2e7 times as many tiles, i.e. 13 more layers.
 // now, given that the math isn't conservative enough, i might need WAY WAY more than that. but even if i just need 13 more layers, i think the current approach won't get me there.  i'm going to need a "resetting" approach, i.e. imagine starting fully zoomed out, then zooming all the way in to a 14th-level tile, then the bookkeeping "resets" to treat that thing (and all others at its level) like it's the fully-zoomed-out tile.  i need something like that.
 // man, this is making me realize just how difficult it is to comprehend the scale of the age of the universe.  it's going to be like 99.9999999999999999999999999999999999999999999...% already-filled-in pixels.  will zooming around even be interesting?  how will i label each individual second?  i guess there are only 17 digits needed, that's not that big of a deal.  i'll definitely want to render the full viewport, not just some 600x600 area canvas.  also HOLY SHIT if i do it to the heat death of the universe.... i think that needs to be a toggleable feature.  but without it, where does it end?  at the viewer's 100th birthday?  100 years from now?  the year 3000?
-// i think first draft might have to be just a linear plot of seconds.  or something.  i just don't know how to keep track of what "year" it was 1e16 seconds ago.  i guess i could use some kind of approximation.  but either way, when you zoom down to a second, each one will get labeled.  NO!  i think the axis-alternating characteristic is a crucial one, because it means at whatever scale you're at, you can pan in either dimension and see sensible time steps.
-//
-// TODO NEXT:
-// [x] make a demo that displays the [x0, y0, x1, y1] bounding box coordinates of the viewport, and lets it go out as far as the "total canvas size" below, and only in as far as 1 pixel per pixel.  this might just be https://observablehq.com/@d3/x-y-zoom?collection=@d3/d3-zoom -- not sure if the usage of d3-axis is necessary or not, but it might be the most efficient (assuming i can get current viewport bounds programmatically from each axis object?  i'll need those to do culling, and i'll need the scale to eventually decide what "resolution" of tallies to draw, but that's not part of this demo.)
-// [ ] i did the display of the bounding box coordinates of the viewport, now do the bit above about the setting bounding limits to "total canvas size" and 1 pixel per pixel (no negative numbers, i guess)
 
 import * as d3 from 'd3'
 import {tile as d3tile} from 'd3-tile'
@@ -41,38 +36,6 @@ const width = 600
 const height = 600
 const MAX_DEPTH = 14 // empirically found, when scaleExtent is 1<<22
 
-// Drawing params
-const secondSize = [16, 128]
-const secondPadX = 2 // this is the limiting dimension.  may as well divide everything by 2 after i'm done w/ all this. OH BUT WAIT, if i add milliseconds, then msPadY will become limiting.
-const minutePadY = 8 // TODO: play w/ making this 8x secondPadX
-// minuteWidth = secondWidth * 60 + secondPadX * 59 = 1078
-// minuteHeight = secondHeight = 128
-const hourPadX = 64 // happens to be 8x minutePad
-// hourWidth = minuteWidth = 1078
-// hourHeight = minuteHeight * 60 + minutePadY * 59 = 8152
-const dayPadY = 536 // TODO: any good reason to make this (and the rest) a power of 2? NOTE: this is about 8x hourPadX
-// dayWidth = hourWidth * 24 + hourPadX * 23 = 27344
-// dayHeight = hourHeight = 8152
-// scaled-down day height = 76, pad = 5.  so real day pad = 5*(8152/76) =~ 536
-const weekPadX = 2574 // TODO: maybe 4x dayPadY??
-// weekWidth = dayWidth = 27344
-// weekHeight = dayHeight * 7 + dayPadY * 6 = 60280
-const yearPadY = 4 * weekPadX // 10296
-// yearWidth = weekWidth * 52 + weekPadX * 51 = 1553162
-// yearHeight = weekHeight = 60280
-const centuryPadX = 30 * yearPadY // 308880
-// centuryWidth = yearWidth = 1553162
-// centuryHeight = yearHeight * 100 + yearPadY * 99 = 7047304
-const milenniumPadY = 5 * centuryPadX // 1544400
-// milenniumWidth = centuryWidth * 10 + centuryPadX * 9 = 18311540
-// milenniumHeight = centuryHeight = 7047304
-const e5PadX = 5 * milenniumPadY // 7722000
-// e5Width = milenniumWidth = 18311540
-// e5Height = milenniumHeight * 100 + milenniumPadY * 99 = 1469208400
-const e7PadY = 5 * e5PadX // 38610000
-// e7Width = e5Width * 100 + e5PadX * 99 = 2595632000
-// e7Height = e5Height = 1469208400
-const e9PadX = 5 * e7PadY // 193050000
 // e9Width = e7Width = 2595632000
 // e9Height = e7Height * 100 + e7PadY * 99 = 150743230000
 // that gets us to the padding between "tallies" of 1BB years.  we need 13.7 of those, which gives a total canvas size of:
@@ -80,36 +43,6 @@ const e9PadX = 5 * e7PadY // 193050000
 //
 //
 // https://observablehq.com/@fil/height#height <-- eventually might want that, to get (and be responsive to changes in?) the viewport height.
-
-function wat([x0,y0, x1,y1]) {
-  // give me a bounding box of the canvas.  i know the screen size (it may change over time).
-  // i'll return a description of what should be drawn.  e.g.:
-  // ...?
-  //
-  //let's say we're given a point, x,y.  we should be able to say... something, right?
-  //
-  //let's say we stop at years.  years are horizontal bars, stacked vertically, so we have a big huge vertical stack of years.
-  //let's say we have just 1000 years.  that's all of history.
-  //"canvas" size is yearWidth x (1000*yearHeight+999*yearPadY) = 1,553,162 x 368,851,120
-  //given a point, [50000, 500000]... what do we know? start w/ Y (because that's our coarsest grain, years). 500000/(yearHeight+yearPadY) = 500000/70576 = 7.08 = 7 R 5968
-  //then switch axis to X -- 50000/(weekWidth+weekPadX) = 50000/29918 = 1.67123471 = 1 R 20082
-  //so so far, 7 years 1 week and change.  now to days with the Y-remainder:
-  //5968/(dayHeight+dayPadY) = 5968/8688 = 0 R 5968
-  //X-remainder: 20082/(hourWidth+hourPadX) = 20082/1142 = 17.58 = 17 R 668
-  //7 years, 1 week, 0 days, 17 hours
-  //Y-remainder: 5968/(minuteHeight+minutePadY) = 5968/136 = 43.88235294 = 43 R 120
-  //X-remaincer: 668/(secondWidth+secondPadX) = 668/18 = 37.11111111 = 37 R 2
-  //7 years, 1 week, 0 days, 17 hours, 43 minutes, 37 seconds.
-  //This is the second tally that we're "at" (i.e., its top-left corner is the nearest one that's above and left of us)
-  //
-  //ok, so i'm going to end up with 4 such numbers, one for each corner of the bounding box... then what?
-  //then i have to decide what tallies get drawn, and where they get drawn.
-  //the top-left and bottom-right corners dictate upper and lower bounds of tallies to consider, but there could be
-  //a huge timespan there, even if we're zoomed in far, because we could be zoomed in to, e.g., a millenium boundary.
-  //the "k" value should tell us what resolution we're dealing with (once i empirically pick an appropriate mapping of k to resolution)
-  //or i suppose i could infer it from the bounding box, too.  in fact, that plus screen size
-  //should allow me to do something smart.  e.g. if i've got 360000 pixels of screen and i'm trying to render 360000 pixels of canvas, then i'm gonna be drawing seconds.  but at 40000 pixels of screen and 360000 pixels of canvas, i might only be drawing down to minutes or hours.
-}
 
 
 // sec1 < sec2 ==> -1
@@ -141,8 +74,9 @@ function sumElements(arr1, arr2) {
 
 class Geometry {
   #dims = []
+  parent = null
 
-  constructor(secWidth, secHeight, secPad) {
+  static withSecondDims(secWidth, secHeight, secPad) {
     const baseDim = {
       name: 'second',
       rollupCnt: null,
@@ -152,7 +86,12 @@ class Geometry {
       sizeWithPad: secWidth + secPad,
       axis: 'x', // the axis along which we step to draw each tally
     }
-    this.#dims.unshift(baseDim)
+    return new Geometry([baseDim], null)
+  }
+
+  constructor(dims, parent) {
+    this.#dims = dims
+    this.parent = parent
   }
 
   addDimension(name, rollupCnt, pad) {
@@ -170,6 +109,16 @@ class Geometry {
       newDim.sizeWithPad = newDim.width + pad
     }
     this.#dims.unshift(newDim)
+  }
+
+  subGeo() {
+    if (this.#dims.length <= 1) return this
+    return new Geometry(this.#dims.slice(0, this.#dims.length - 1), this)
+  }
+
+  superGeo() {
+    if (!this.parent) return this
+    return this.parent
   }
 
   get baseDim() {
@@ -195,16 +144,19 @@ class Geometry {
     const remainder = { x, y }
     for (let i = 0; i < this.#dims.length; i++) {
       const dim = this.#dims[i]
+      const nextDim = this.#dims[i-1]
       // TODO: how should i handle non-ints?
-      // TODO: how should i handle negative nums?  probably throw exception... i want upper-left of canvas to be considered 0,0
       // TODO: is retular math sufficient for such large numbers, or do i have to use a bigint lib or decimal lib or something?
       // TODO: does it matter if my remainder ever hits exactly 0? (maybe... write tests!)
-      // TODO: does it matter if i end up in the padding or not? IT DOES!  i can get weird-sounding results like "5 hour, 61 minute, 19 second" because the empty space after the 60th minute is quite large, because it's REALLY the padding for days, i.e. you can fit several more minutes-with-padding in there. (see gimp day-of-seconds file for example, notice you could fit about 4 second-tallies in the hour padding space.) so i think if i get a resul like "62 minute (y-remainder = Y)", i want to actually modify that to "60 minute (y-remainder = Y + 2*minuteSizeWithPad)".  i wonder if this is only a problem with seconds and minutes, because they're the smallest dims in each axis, or if it's all the way up the stack? ANS: all the way up the stack.  i played around and saw a "53 week".
-      // console.log("dim", dim.name, dim.axis, dim.sizeWithPad)
-      const newRem = remainder[dim.axis] % dim.sizeWithPad
-      // const count = (remainder[dim.axis] - newRem) / dim.sizeWithPad
-      // console.log(remainder[dim.axis], '/', dim.sizeWithPad, '=', count, 'R', newRem)
-      second.push((remainder[dim.axis] - newRem) / dim.sizeWithPad)
+      let newRem = remainder[dim.axis] % dim.sizeWithPad
+      let count = (remainder[dim.axis] - newRem) / dim.sizeWithPad
+      if (nextDim && count >= nextDim.rollupCnt) {
+        const max = nextDim.rollupCnt - 1
+        const diff = count - max
+        count = max
+        newRem += dim.sizeWithPad * diff
+      }
+      second.push(Math.max(0, count))
       remainder[dim.axis] = newRem
     }
     return { second, remainder }
@@ -243,8 +195,10 @@ class Geometry {
       yield s
       s = this.incrementX(s)
       if (!s || this.compareSecondsXY(rightBound, s).x > 0) { // jump to next line down
-        s = sumElements(leftBound, this.ys(this.incrementY(s)))
-        if (!s || this.compareSecondsXY(lowerBound, s).y > 0) break
+        const below = this.incrementY(s)
+        if (!below) break
+        s = sumElements(leftBound, this.ys(below))
+        if (this.compareSecondsXY(lowerBound, s).y > 0) break
       }
     }
   }
@@ -328,26 +282,25 @@ class Geometry {
 }
 
 
-// const geo = new Geometry(16, 128, 2)
-// geo.addDimension('minute', 60, 8)
-// geo.addDimension('hour', 60, 64)
-// geo.addDimension('day', 24, 536)
-// geo.addDimension('week', 7, 2574)
-// geo.addDimension('year', 52, geo.lastDim.pad * 4)
-// geo.addDimension('century', 100, geo.lastDim.pad * 30)
-// geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
-// geo.addDimension('e5', 100, geo.lastDim.pad * 5)
-// geo.addDimension('e7', 100, geo.lastDim.pad * 5)
-// geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+let geo = Geometry.withSecondDims(16, 128, 2)
+geo.addDimension('minute', 60, 8)
+geo.addDimension('hour', 60, 64)
+geo.addDimension('day', 24, 536)
+geo.addDimension('week', 7, 2574)
+geo.addDimension('year', 52, geo.lastDim.pad * 4)
+geo.addDimension('century', 100, geo.lastDim.pad * 30)
+geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
+geo.addDimension('e5', 100, geo.lastDim.pad * 5)
+geo.addDimension('e7', 100, geo.lastDim.pad * 5)
+geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+// geo = geo.subGeo()
+// geo = geo.subGeo()
 
-const geo = new Geometry(16, 128, 2)
-geo.addDimension('minute', 4, geo.lastDim.pad * 2)
-geo.addDimension('hour', 4, geo.lastDim.pad * 2)
-geo.addDimension('day', 4, geo.lastDim.pad * 2)
-geo.addDimension('week', 7, geo.lastDim.pad * 2)
-
-// console.log(geo.printableNearestSecond(50000, 500000))
-console.log(geo.printableNearestSecond(6067, 8312))
+// const geo = Geometry.withSecondDims(16, 128, 2)
+// geo.addDimension('minute', 4, geo.lastDim.pad * 3)
+// geo.addDimension('hour', 4, geo.lastDim.pad * 3)
+// geo.addDimension('day', 4, geo.lastDim.pad * 3)
+// geo.addDimension('week', 7, geo.lastDim.pad * 3)
 
 
 const simpleZoom = function() {
@@ -385,10 +338,10 @@ const simpleZoom = function() {
   // that shouldn't be too hard, i suppose.  just figure out the math.
 
   function zoomed({transform}) {
+    // console.log(transform.k)
+    // TODO: if k <= 0.25 then use a minute-based geometry
     const xThing = transform.rescaleX(x)
     const yThing = transform.rescaleY(y)
-    // console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
-    // console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
     const p0int = [
       Math.trunc(xThing.invert(0)),
       Math.trunc(yThing.invert(0)),
@@ -397,15 +350,12 @@ const simpleZoom = function() {
       Math.trunc(xThing.invert(width)),
       Math.trunc(yThing.invert(height)),
     ]
-    console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
-    console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
+    // console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
+    // console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
 
     const firstSec = geo.nearestSecond(...p0int)
     const lastSec = geo.nearestSecond(...p1int)
 
-    // for (let s of geo.secondsBetween(firstSec.second, lastSec.second)) {
-    //   console.log(s)
-    // }
     const secs = [...geo.visibleSecondsBetween(firstSec.second, lastSec.second)]
     console.log(`num seconds: ${secs.length}`)
 
@@ -428,11 +378,7 @@ const simpleZoom = function() {
     talliesGroup.attr("transform", transform)
 
 
-    // TODO: get nearest second for lower-left and upper-right corners, too.
-    // use those to calculate how many second tallies are in the bounding box.
-    // should be a pretty quick calc, i think... i'm sure there's some algorithm
-    // i can come up with to "understand" when we do things like skip across a
-    // century pad or an e5 pad, etc.  the total number of second tallies might be
+    // TODO: the total number of second tallies might be
     // useful in deciding whether to just print minutes, or hours, or days, etc.
     // it's probably not the ONLY useful number, maybe not even the most significant
     // number, but it might weigh into that decision.  (i think the most useful one
@@ -539,6 +485,10 @@ const simpleZoomWithAxes = () => {
 }
 
 function runTests() {
+
+  // ===================================
+  // UTILITY FUNCTIONS
+  // ===================================
   function assert(errMsgIfFailed) {
     if (errMsgIfFailed) throw new Error(errMsgIfFailed)
     console.log('SUCCESS')
@@ -562,7 +512,10 @@ function runTests() {
     }
   }
 
-  const geo0 = new Geometry(16, 128, 2)
+  // ===================================
+  // Geometry
+  // ===================================
+  const geo0 = Geometry.withSecondDims(16, 128, 2)
   geo0.addDimension('minute', 4, geo0.lastDim.pad * 2)
   geo0.addDimension('hour', 4, geo0.lastDim.pad * 2)
   geo0.addDimension('day', 4, geo0.lastDim.pad * 2)
@@ -613,7 +566,7 @@ function runTests() {
     ]
   ))
 
-  const geo = new Geometry(16, 128, 2)
+  const geo = Geometry.withSecondDims(16, 128, 2)
   geo.addDimension('minute', 60, 8)
   geo.addDimension('hour', 60, 64)
   geo.addDimension('day', 24, 536)
@@ -624,6 +577,10 @@ function runTests() {
   geo.addDimension('e5', 100, geo.lastDim.pad * 5)
   geo.addDimension('e7', 100, geo.lastDim.pad * 5)
   geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+
+  const pointInPadding = geo.nearestSecond(6067, 8312)
+  assert(secondsEqual(pointInPadding.second, geo.s([5,59,19])))
+  assert(xyEqual(pointInPadding.remainder, {x: 15, y: 288}))
 
   assert(arrayOfSecondsEqual(
     [...geo.visibleSecondsBetween(geo.s([58,42]), geo.s([1,1,0,8]))],

@@ -32,6 +32,11 @@ npm run dev
 - everysecond.fyi
 - finitude.space
 - youarefinite.fyi
+- allthetime.fyi
+- allthetime.live
+- allthetime.space
+- clock.quest
+- mortality.observer
 
 ### Ideas
 
