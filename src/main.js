@@ -293,6 +293,15 @@ geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
 geo.addDimension('e5', 100, geo.lastDim.pad * 5)
 geo.addDimension('e7', 100, geo.lastDim.pad * 5)
 geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+const geoSecond = geo
+const geoMinute = geo.subGeo()
+const geoHour = geoMinute.subGeo()
+const geoDay = geoHour.subGeo()
+const geoWeek = geoDay.subGeo()
+const geoYear = geoWeek.subGeo()
+const geoCentury = geoYear.subGeo()
+const geoMillenium = geoCentury.subGeo()
+const geoE5 = geoMillenium.subGeo()
 // geo = geo.subGeo()
 // geo = geo.subGeo()
 
@@ -338,8 +347,29 @@ const simpleZoom = function() {
   // that shouldn't be too hard, i suppose.  just figure out the math.
 
   function zoomed({transform}) {
-    // console.log(transform.k)
+    console.log(transform.k)
     // TODO: if k <= 0.25 then use a minute-based geometry
+    if (transform.k > 0.3) {
+      geo = geoSecond
+    } else if (transform.k > 0.05) {
+      geo = geoMinute
+    } else if (transform.k > 0.005) {
+      geo = geoHour
+    } else if (transform.k > 0.001) {
+      geo = geoDay
+    } else if (transform.k > 0.0003) {
+      geo = geoWeek
+    } else if (transform.k > 0.00005) {
+      geo = geoYear
+    } else if (transform.k > 0.00001) {
+      geo = geoCentury
+    } else if (transform.k > 0.000005) {
+      geo = geoMillenium
+    } else if (transform.k > 0.000001) {
+      geo = geoE5
+    }
+    console.log(geo.baseDim.name)
+
     const xThing = transform.rescaleX(x)
     const yThing = transform.rescaleY(y)
     const p0int = [
