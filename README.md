@@ -10,6 +10,17 @@ Vite is awesome.
 npm run dev
 ```
 
+## Deploying
+
+I have a dokku instance set up. I deployed it there with the name "time". After
+the first deploy, I had to ssh in and do
+
+```
+dokku config:set time NGINX_ROOT=dist
+```
+
+and now it works!
+
 ## TODO
 
 - [ ] tests?
