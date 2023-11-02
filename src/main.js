@@ -319,14 +319,6 @@ const simpleZoom = function() {
   let talliesGroup = svg.append("g")
   let tallies = talliesGroup.selectAll('rect')
 
-  const k = height / width
-  const x = d3.scaleLinear()
-    .domain([0, width])
-    .range([0, width])
-  const y = d3.scaleLinear()
-    .domain([0 * k, height * k])
-    .range([0, height])
-
   const zoom = d3.zoom()
     .extent([[0, 0], [width, height]])
     //.scaleExtent([1, 8])
@@ -370,15 +362,13 @@ const simpleZoom = function() {
     }
     console.log(geo.baseDim.name)
 
-    const xThing = transform.rescaleX(x)
-    const yThing = transform.rescaleY(y)
     const p0int = [
-      Math.trunc(xThing.invert(0)),
-      Math.trunc(yThing.invert(0)),
+      Math.trunc(transform.invertX(0)),
+      Math.trunc(transform.invertY(0)),
     ]
     const p1int = [
-      Math.trunc(xThing.invert(width)),
-      Math.trunc(yThing.invert(height)),
+      Math.trunc(transform.invertX(width)),
+      Math.trunc(transform.invertY(height)),
     ]
     // console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
     // console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
