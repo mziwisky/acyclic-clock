@@ -340,7 +340,6 @@ const simpleZoom = function() {
 
   function zoomed({transform}) {
     console.log(transform.k)
-    // TODO: if k <= 0.25 then use a minute-based geometry
     if (transform.k > 0.3) {
       geo = geoSecond
     } else if (transform.k > 0.05) {
@@ -362,6 +361,17 @@ const simpleZoom = function() {
     }
     console.log(geo.baseDim.name)
 
+    let containerTransform = transform
+    // let tallyTransform = d3.zoomIdentity
+    let tallyScale = 1
+    // while (containerTransform.k < 0.5) {
+    //   containerTransform = containerTransform.scale(2)
+    //   tallyScale *= 0.5
+    // }
+    // TODO: this idea seems like it's _kind of_ right... but you end up with really small tallyScale pretty fast, and that's probably a problem.  so next thing to try is to basically do this canvas-style -- don't use `transform` on `g` elements (or in `style`s?) but instead, calculate X, Y, width, and height of each tally on each invocation of this function.  similar to https://observablehq.com/@d3/zoom-canvas-rescaled?collection=@d3/d3-zoom.  then we hopefully won't get the artifacts that occur from tally `g`s not recalculating their transform until the `secs` data changes... or is that an orthogonal issue?  i don't know.  maybe so.  maybe i'll need to work the transforms into the `secs` data so that d3 sees it as a change.  also, not sure if the new approach will hurt performance, but i do think it's the only option once we move to canvas, so may as well get it figured out now with SVG because SVG is easier to debug/inspect in the DOM
+    //
+    // actually, from https://observablehq.com/@d3/zoom-svg-rescaled?collection=@d3/d3-zoom, maybe i don't have to shoehorn the transform into `secs` at all, i just have to call `.attr(A, fn)` for A='width', A='height', A='x', A='y', that way the data doesn't change, and therefore the DOM elements don't get replaced, but the attrs of the DOM elements do change.
+
     const p0int = [
       Math.trunc(transform.invertX(0)),
       Math.trunc(transform.invertY(0)),
@@ -381,7 +391,10 @@ const simpleZoom = function() {
 
     tallies = tallies.data(secs, d => d)
       .join(enter => enter.append('g')
-        .attr('transform', sec => { const l = geo.locationOf(sec); return `translate(${l.x}, ${l.y})` })
+        .attr('transform', sec => {
+          const l = geo.locationOf(sec)
+          return `translate(${tallyScale * l.x}, ${tallyScale * l.y}) scale(${tallyScale})`
+        })
         .call(g => g.append('rect')
           .attr('fill', 'black')
           .attr('width', geo.baseDim.width)
@@ -392,10 +405,7 @@ const simpleZoom = function() {
           .text(d => d))
       )
 
-    // TODO: firstSec.remainder probably factors into the translate somehow.... right?  or not? maybe involving something like:
-    // const tRem = transform.translate(firstSec.remainder.x, firstSec.remainder.y)
-    // console.log('tRem',tRem)
-    talliesGroup.attr("transform", transform)
+    talliesGroup.attr("transform", containerTransform)
 
 
     // TODO: the total number of second tallies might be
