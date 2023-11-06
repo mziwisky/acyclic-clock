@@ -301,6 +301,8 @@ const geoYear = geoWeek.subGeo()
 const geoCentury = geoYear.subGeo()
 const geoMillenium = geoCentury.subGeo()
 const geoE5 = geoMillenium.subGeo()
+const geoE7 = geoE5.subGeo()
+const geoE9 = geoE7.subGeo()
 // geo = geo.subGeo()
 // geo = geo.subGeo()
 
@@ -361,10 +363,14 @@ const simpleZoom = function() {
       geo = geoMillenium
     } else if (transform.k > 0.000001) {
       geo = geoE5
+    } else if (transform.k > 0.0000005) {
+      geo = geoE7
+    } else {
+      geo = geoE9
     }
     console.log(geo.baseDim.name)
 
-    let containerTransform = transform
+    // let containerTransform = transform
     // let tallyTransform = d3.zoomIdentity
     let tallyScale = 1
     // while (containerTransform.k < 0.5) {
@@ -396,7 +402,8 @@ const simpleZoom = function() {
       .join(enter => enter.append('g')
         .attr('transform', sec => {
           const l = geo.locationOf(sec)
-          return `translate(${tallyScale * l.x}, ${tallyScale * l.y}) scale(${tallyScale})`
+          // return `translate(${l.x}, ${l.y}) scale(${transform.k})`
+          return `translate(${transform.applyX(l.x)}, ${transform.applyY(l.y)}) scale(${transform.k})`
         })
         .call(g => g.append('rect')
           .attr('fill', 'black')
@@ -408,7 +415,11 @@ const simpleZoom = function() {
           .text(d => d))
       )
 
-    talliesGroup.attr("transform", containerTransform)
+    // talliesGroup.attr("transform", containerTransform)
+    tallies.attr('transform', sec => {
+      const l = geo.locationOf(sec)
+      return `translate(${transform.applyX(l.x)}, ${transform.applyY(l.y)}) scale(${transform.k})`
+    })
   }
 
   return svg.node();
