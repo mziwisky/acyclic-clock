@@ -34,7 +34,6 @@ import {tile as d3tile} from 'd3-tile'
 
 const width = 600
 const height = 600
-const MAX_DEPTH = 14 // empirically found, when scaleExtent is 1<<22
 
 // e9Width = e7Width = 2595632000
 // e9Height = e7Height * 100 + e7PadY * 99 = 150743230000
@@ -340,6 +339,10 @@ const simpleZoom = function() {
 
   function zoomed({transform}) {
     console.log(transform.k)
+    // TODO: I have a feeling i'll eventually want to make this a little more
+    // sophisticated, e.g. instead of a fixed set of k-thresholds, factor in
+    // the viewport size.  smaller size might mean i can get away with finer
+    // resolution for a more zoomed-out perspective?
     if (transform.k > 0.3) {
       geo = geoSecond
     } else if (transform.k > 0.05) {
@@ -406,112 +409,9 @@ const simpleZoom = function() {
       )
 
     talliesGroup.attr("transform", containerTransform)
-
-
-    // TODO: the total number of second tallies might be
-    // useful in deciding whether to just print minutes, or hours, or days, etc.
-    // it's probably not the ONLY useful number, maybe not even the most significant
-    // number, but it might weigh into that decision.  (i think the most useful one
-    // will just be canvas area in pixels compared to viewport pixels)
   }
 
   return svg.node();
-}
-
-const simpleZoomWithAxes = () => {
-  const width = 600, height = 480
-
-  const k = height / width
-  const x = d3.scaleLinear()
-    .domain([-4.5, 4.5])
-    .range([0, width])
-  const y = d3.scaleLinear()
-    .domain([-4.5 * k, 4.5 * k])
-    .range([height, 0])
-  // const z = d3.scaleOrdinal()
-  //   .domain(data.map(d => d[2]))
-  //   .range(d3.schemeCategory10)
-
-  const xAxis = (g, x) => g
-    .attr("transform", `translate(0,${height})`)
-    .call(d3.axisTop(x).ticks(12))
-    .call(g => g.select(".domain").attr("display", "none"))
-
-  const yAxis = (g, y) => g
-    .call(d3.axisRight(y).ticks(12 * k))
-    .call(g => g.select(".domain").attr("display", "none"))
-
-  const grid = (g, x, y) => g
-    .attr("stroke", "currentColor")
-    .attr("stroke-opacity", 0.1)
-    .call(g => g
-      .selectAll(".x")
-      .data(x.ticks(12))
-      .join(
-        enter => enter.append("line").attr("class", "x").attr("y2", height),
-        update => update,
-        exit => exit.remove()
-      )
-        .attr("x1", d => 0.5 + x(d))
-        .attr("x2", d => 0.5 + x(d)))
-    .call(g => g
-      .selectAll(".y")
-      .data(y.ticks(12 * k))
-      .join(
-        enter => enter.append("line").attr("class", "y").attr("x2", width),
-        update => update,
-        exit => exit.remove()
-      )
-        .attr("y1", d => 0.5 + y(d))
-        .attr("y2", d => 0.5 + y(d)));
-
-  const zoom = d3.zoom()
-      .scaleExtent([0.5, 32])
-      .on("zoom", zoomed);
-
-  const svg = d3.create("svg")
-      .attr("viewBox", [0, 0, width, height]);
-
-  const gx = svg.append("g");
-
-  const gy = svg.append("g");
-
-  const gGrid = svg.append("g");
-
-  svg.call(zoom).call(zoom.transform, d3.zoomIdentity);
-
-  // const gDot = svg.append("g")
-  //     .attr("fill", "none")
-  //     .attr("stroke-linecap", "round");
-
-  // gDot.selectAll("path")
-  //   .data(data)
-  //   .join("path")
-  //     .attr("d", d => `M${x(d[0])},${y(d[1])}h0`)
-  //     .attr("stroke", d => z(d[2]));
-
-
-  function zoomed({transform}) {
-    console.log(transform)
-    const zx = transform.rescaleX(x).interpolate(d3.interpolateRound);
-    const zy = transform.rescaleY(y).interpolate(d3.interpolateRound);
-    const xThing = transform.rescaleX(x)
-    const yThing = transform.rescaleY(y)
-    console.log(`X: ${xThing.invert(0)}, ${xThing.invert(width)}`)
-    console.log(`Y: ${yThing.invert(0)}, ${yThing.invert(height)}`)
-    // gDot.attr("transform", transform).attr("stroke-width", 5 / transform.k);
-    gx.call(xAxis, zx);
-    gy.call(yAxis, zy);
-    gGrid.call(grid, zx, zy);
-  }
-
-  return Object.assign(svg.node(), {
-    reset() {
-      svg.transition()
-          .duration(750)
-          .call(zoom.transform, d3.zoomIdentity);
-    }
-  });
 }
 
 function runTests() {
@@ -629,166 +529,7 @@ function runTests() {
 
 runTests()
 
-const map = function() {
-  const svg = d3.create("svg")
-      .attr("viewBox", [0, 0, width, height]);
-
-  const tiler = d3tile()
-    .extent([[0, 0], [width, height]]); // <-- no clue what this does
-
-  const zoom = d3.zoom()
-    .scaleExtent([1 << 0, 1 << 28]) // <-- scale extents. if you make the upper limit too high, e.g. 1<<28, then zooming in really deep gets "jittery". feels like, theoretically, there should be a way to "reset" the zoom after a certain depth to make in-zooming effectively infinite. but i probably don't need that capability for this project anyway.
-    .extent([[0, 0], [width, height]]) // <-- no clue what this does
-    .on("zoom", (event) => zoomed(event.transform));
-
-  const tileGroup = svg.append("g")
-      .attr("pointer-events", "none")
-      .attr("font-family", "var(--sans-serif)")
-      .attr("font-size", 16);
-
-  let tile = tileGroup.selectAll("g");
-
-  svg
-      .call(zoom)
-      .call(zoom.transform, d3.zoomIdentity
-        .translate(width >> 1, height >> 1)
-        .scale(1 << 22)); // <-- initial scale
-
-  function zoomed(transform) {
-    console.log(transform)
-    const tiles = tiler(transform);
-    // console.log(tiles)
-    // `tiles` is an array of 3-element arrays (the 3 numbers that get rendered on each square)
-    // `tiles` also has a `scale` property which, as you zoom in, gets bigger and bigger until
-    // you cross the threshold that splits the map into more tiles, at which point scale snaps to
-    // a smaller number and then grows again.
-    // `tiles` also has a `translate` property which is a pair of numbers that obviously has
-    // something to do with where you're at in your translation.  that value also scales with
-    // the zoom, and the numbers you get there are close to the first two numbers of the 0th 3-element
-    // array.
-
-    tileGroup.attr("transform", `
-      scale(${tiles.scale})
-      translate(${tiles.translate.join(",")})
-    `);
-
-    tile = tile.data(tiles, d => d).join(
-      enter => enter.append("g")
-        .attr("transform", ([x, y]) => `translate(${x}, ${y}) scale(${1 / 256})`)
-        .call(g => g.append("rect")
-          .attr("fill", d => d3.interpolateRainbow(hilbert(...d)))
-          .attr("fill-opacity", 0.5)
-          .attr("stroke", "black")
-          .attr("width", 256)
-          .attr("height", 256))
-        .call(g => g.append("text")
-          .attr("x", "0.4em")
-          .attr("y", "1.2em")
-          .text(d => d.join("/")))
-        // .call(g => g.append(d => drawTile(...d)))
-        // .call(g => g.append(d => circlesForDepth(d[2])))
-    );
-  }
-
-  // programatic scale, animates to the resulting zoom
-  // svg.transition().call(zoom.scaleBy, 20)
-  return svg.node();
-}
-
-const SEC_SIZE = [200, 200]
-const SEC_PAD = [0, 0]
-const TILE_SIZE = 256
-
-function drawTile(x,y,z) {
-  // TODO: starting to think that tiles are unnecessary.... maybe all i need is zoom/translate.
-  // i don't have multi-resolution jpegs here, i have dynamically generated bars.  at certain
-  // thresholds (empirically chosen, i think), i need to convalesce finer bars into coarser ones.
-  // but i don't think the abstraction of quad-tiles buys me anything.  in fact, it probably just
-  // makes things harder.  (though it did help out with my napkin math about how deep my zoom depth
-  // needed to go...)
-  const group = d3.create('svg:g')
-  if (z < 8) z = 8
-  const inv_depth = MAX_DEPTH - z
-  const scale = 2 ** inv_depth
-  const step = TILE_SIZE / scale
-
-  for (let i = 0; i < scale; i++) {
-    for (let j = 0; j < scale; j++) {
-      const x = SEC_PAD[0] / scale + step * i
-      const y = SEC_PAD[1] / scale + step * j
-      group.append('rect')
-        .attr('fill', 'black')
-        .attr('width', SEC_SIZE[0] / scale)
-        .attr('height', SEC_SIZE[1] / scale)
-        .attr('transform', `translate(${x}, ${y})`)
-    }
-  }
-  return group.node()
-}
-
-// TODO: right now this increases num of circles as you zoom in. actually want it to decrease that number.
-// and to position them where they came from in the "sub-tiles" that made up this tile
-function circlesForDepth(depth) {
-  const group = d3.create('svg:g')
-  const spacing = 256 / (depth + 2)
-  for (let i = 0; i <= depth; i++) {
-    group.append("circle")
-      .attr("cx", 128)
-      .attr("cy", (i+1)*spacing)
-      .attr("r", 100 * (depth+1) / MAX_DEPTH)
-  }
-  return group.node()
-}
-
-
-function hilbert(x, y, z) {
-  let n = 1 << z, rx, ry, s, d = 0;
-  for (s = n >> 1; s > 0; s >>= 1) {
-    rx = (x & s) > 0;
-    ry = (y & s) > 0;
-    d += s * s * ((3 * rx) ^ ry);
-    [x, y] = rot(n, x, y, rx, ry);
-  }
-  return d / (1 << z * 2);
-}
-
-function rot(n, x, y, rx, ry) {
-  if (!ry) {
-    if (rx) {
-      x = n - 1 - x;
-      y = n - 1 - y;
-    }
-    return [y, x];
-  }
-  return [x, y];
-}
 
 const appDiv = document.getElementById('app')
-// const svg = map()
 const svg = simpleZoom()
-// const svg = simpleZoomWithAxes()
 appDiv.appendChild(svg)
-
-// // nevermind the dumb little experiment down here. thought maybe i could draw a huge, fully-detailed scene on a canvas and then just render a "viewport canvas" that's zoomed into a small window of it, but while it works in theory for smaller scenes, it's absolutely nowhere near feasible.
-// const viewportCanvasWidth = 600
-// const viewportCanvasHeight = 600
-// const viewportCanvas = document.createElement('canvas')
-// viewportCanvas.setAttribute('width', viewportCanvasWidth)
-// viewportCanvas.setAttribute('height', viewportCanvasHeight)
-// viewportCanvas.setAttribute('style', 'border: 1px solid')
-//
-// const dataCanvas = document.createElement('canvas')
-// const dataCtx = dataCanvas.getContext("2d");
-// dataCanvas.setAttribute('width', viewportCanvasWidth)
-// dataCanvas.setAttribute('height', viewportCanvasHeight / 2)
-// const w = 10, h = 10, hp = 2, vp = 5
-// for (let i = 0; i < 100; i++) {
-//   for (let j = 0; j < 100; j++) {
-//     dataCtx.fillRect(i * (w+hp), j * (h + vp), w, h)
-//   }
-// }
-//
-// const viewportContext = viewportCanvas.getContext("2d");
-// viewportContext.drawImage(dataCanvas, 0, 0, 600, 600, 0, 0, viewportCanvasWidth, viewportCanvasHeight)
-//
-// appDiv.appendChild(viewportCanvas)
