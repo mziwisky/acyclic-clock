@@ -303,8 +303,12 @@ const geoMillenium = geoCentury.subGeo()
 const geoE5 = geoMillenium.subGeo()
 const geoE7 = geoE5.subGeo()
 const geoE9 = geoE7.subGeo()
-// geo = geo.subGeo()
-// geo = geo.subGeo()
+console.log("E9 dims:", geoE9.lastDim.width, geoE9.lastDim.height)
+
+window.rescale = () => {
+  // TODO: rescale everything such that the canvas becomes 1:1 with the viewport.  i.e. p0int becomes [0,0] and p1int becomes [width,height].
+  // ACTUALLY, do i even need to?  things are now working as-is!  i've got some extreme numbers involved in some of the math, but if it ain't broke, go work on something more interesting
+}
 
 // const geo = Geometry.withSecondDims(16, 128, 2)
 // geo.addDimension('minute', 4, geo.lastDim.pad * 3)
@@ -357,16 +361,17 @@ const simpleZoom = function() {
       geo = geoWeek
     } else if (transform.k > 0.00005) {
       geo = geoYear
-    } else if (transform.k > 0.00001) {
-      geo = geoCentury
     } else if (transform.k > 0.000005) {
-      geo = geoMillenium
-    } else if (transform.k > 0.000001) {
-      geo = geoE5
+      geo = geoCentury
     } else if (transform.k > 0.0000005) {
+      geo = geoMillenium
+    } else if (transform.k > 0.00000005) {
+      geo = geoE5
+    } else if (transform.k > 0.000000005) {
       geo = geoE7
     } else {
-      geo = geoE9
+      // geo = geoE9  don't know why, but geoE9 breaks it
+      geo = geoE7
     }
     console.log(geo.baseDim.name)
 
@@ -389,8 +394,8 @@ const simpleZoom = function() {
       Math.trunc(transform.invertX(width)),
       Math.trunc(transform.invertY(height)),
     ]
-    // console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
-    // console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
+    console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
+    console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
 
     const firstSec = geo.nearestSecond(...p0int)
     const lastSec = geo.nearestSecond(...p1int)
@@ -399,27 +404,22 @@ const simpleZoom = function() {
     console.log(`num seconds: ${secs.length}`)
 
     tallies = tallies.data(secs, d => d)
-      .join(enter => enter.append('g')
-        .attr('transform', sec => {
-          const l = geo.locationOf(sec)
-          // return `translate(${l.x}, ${l.y}) scale(${transform.k})`
-          return `translate(${transform.applyX(l.x)}, ${transform.applyY(l.y)}) scale(${transform.k})`
-        })
-        .call(g => g.append('rect')
-          .attr('fill', 'black')
-          .attr('width', geo.baseDim.width)
-          .attr('height', geo.baseDim.height))
-        .call(rect => rect.append('text')
-          .attr('style', 'transform: rotate(90deg) scale(0.6) translate(5px, -7px)')
-          .attr('fill', 'yellow')
-          .text(d => d))
+      .join(enter => enter.append('rect')
+        .attr('fill', 'black')
       )
-
-    // talliesGroup.attr("transform", containerTransform)
-    tallies.attr('transform', sec => {
-      const l = geo.locationOf(sec)
-      return `translate(${transform.applyX(l.x)}, ${transform.applyY(l.y)}) scale(${transform.k})`
-    })
+      .attr('width', _sec => transform.k * geo.baseDim.width)
+      .attr('height', _sec => transform.k * geo.baseDim.height)
+      // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
+      // the result of the `geo.locationOf` calculation
+      .each((sec, i, nodes) => {
+        const l = geo.locationOf(sec)
+        // `nodes[i]` is the actual DOM node in question, not the D3 selection,
+        // so must use `.setAttribute` as opposed to `.attr`
+        nodes[i].setAttribute('x', transform.applyX(l.x))
+        nodes[i].setAttribute('y', transform.applyY(l.y))
+      })
+    // TODO: bring back debug text writing each second value on each tally.  or get straight to
+    // something more like the final implementation of human-readable dates everywhere.
   }
 
   return svg.node();
