@@ -19,11 +19,18 @@ the first deploy, I had to ssh in and do
 dokku config:set time NGINX_ROOT=dist
 ```
 
-and now it works!
+and now it works! Deploy with:
+
+```
+git push dokku HEAD:main
+```
 
 ## TODO
 
-- [ ] tests?
+- [ ] it think needs a scale in the corner. something dynamic, like google maps' scale that shows 10 feet or 20 or 50 or 100 feet or 1 mile or 2 or 5 or 10 or 20 miles, etc. but this one is a 2D scale. i dunno, will that be confusing? because each axis isn't linear, it has big leaps when you cross over a padding. still might be a useful visual aid though? so it would show that 18px in the X direction is a second, 136px in the Y direction is a minute, hourGeo.sizeWithPad px in the X is an hour, etc.
+- [ ] a cross-fade from the current geo to the next one encountered during a zoom, so it's not a harsh snapping from one zoom resolution to the next.
+- [ ] start animating the live seconds ticking away, and frame the landing page to have the current day in view. maybe we stretch the canvas such that the viewport always shows exactly 1 day at the start? and maybe we use a second axis of X for portrait mode viewports and a second axis of Y for landscape ones, or vice versa. dunno, will have to experiment and see what looks best.
+- [ ] landmarks! it's time! figure out how they should look and start inserting some!
 
 ## Notes
 
@@ -40,7 +47,7 @@ and now it works!
 - yourdaysarenumbered.fyi
 - youarenoteternal.fyi
 - everysecondcounts.fyi
-- everysecond.fyi
+- everysecond.fyi (fave? except it might give away the scale, compared to something that sounds more like a clock)
 - finitude.space
 - youarefinite.fyi
 - allthetime.fyi
