@@ -128,6 +128,20 @@ class Geometry {
     return this.#dims[0]
   }
 
+  valueOfSecond(sec) {
+    const len = this.#dims.length
+    let result = 0
+    let multiplier = 1
+    for (let i = len - 1; i >= 0; i--) {
+      const dim = this.#dims[i]
+      if (dim.rollupCnt) {
+        multiplier *= dim.rollupCnt
+      }
+      result += (sec[i] * multiplier)
+    }
+    return result
+  }
+
   locationOf(sec) {
     const len = this.#dims.length
     const result = { x: 0, y: 0 }
@@ -305,16 +319,14 @@ const geoE7 = geoE5.subGeo()
 const geoE9 = geoE7.subGeo()
 console.log("E9 dims:", geoE9.lastDim.width, geoE9.lastDim.height)
 
+
 window.rescale = () => {
   // TODO: rescale everything such that the canvas becomes 1:1 with the viewport.  i.e. p0int becomes [0,0] and p1int becomes [width,height].
   // ACTUALLY, do i even need to?  things are now working as-is!  i've got some extreme numbers involved in some of the math, but if it ain't broke, go work on something more interesting
 }
 
-// const geo = Geometry.withSecondDims(16, 128, 2)
-// geo.addDimension('minute', 4, geo.lastDim.pad * 3)
-// geo.addDimension('hour', 4, geo.lastDim.pad * 3)
-// geo.addDimension('day', 4, geo.lastDim.pad * 3)
-// geo.addDimension('week', 7, geo.lastDim.pad * 3)
+const bigBangYearsAgo = 13.787e9
+const bigBangSecondsAgo = bigBangYearsAgo * 365 * 24 * 60 * 60
 
 
 const simpleZoom = function() {
@@ -323,6 +335,29 @@ const simpleZoom = function() {
 
   let talliesGroup = svg.append("g")
   let tallies = talliesGroup.selectAll('rect')
+
+  let curTransform = d3.zoomIdentity
+  let visibleSecs = []
+  const timeAtBoot = 200 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
+  // i'd have to figure out how to set the camera to include "now" on boot
+  let nowSec = timeAtBoot
+
+  // TODO: be smart about killing the timer if all visible seconds are in the past
+  // also i'll have to use Date.now() if i'm going to be turning the timer on and off
+  d3.timer((msElapsed) => {
+    const secElapsed = Math.floor(msElapsed / 1000)
+    const nextSec = timeAtBoot + secElapsed
+    if (nextSec != nowSec) {
+      nowSec = nextSec
+      drawTallies()
+    }
+  });
+
+  window.boop = () => {
+    console.log(visibleSecs[1])
+    visibleSecs[1] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+    drawTallies()
+  }
 
   const zoom = d3.zoom()
     .extent([[0, 0], [width, height]])
@@ -343,13 +378,39 @@ const simpleZoom = function() {
   // really will save my ass... maybe i need to map the full "canvas" onto a quadtree of tiles.
   // that shouldn't be too hard, i suppose.  just figure out the math.
 
+
+  function drawTallies() {
+    tallies = tallies.data(visibleSecs, d => d)
+      .join(enter => enter.append('rect'))
+      .attr('fill', sec => geo.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
+      .attr('width', _sec => curTransform.k * geo.baseDim.width)
+      .attr('height', _sec => curTransform.k * geo.baseDim.height)
+      // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
+      // the result of the `geo.locationOf` calculation
+      .each((sec, i, nodes) => {
+        const l = geo.locationOf(sec)
+        // `nodes[i]` is the actual DOM node in question, not the D3 selection,
+        // so must use `.setAttribute` as opposed to `.attr`
+        nodes[i].setAttribute('x', curTransform.applyX(l.x))
+        nodes[i].setAttribute('y', curTransform.applyY(l.y))
+      })
+    // TODO: bring back debug text writing each second value on each tally.  or get straight to
+    // something more like the final implementation of human-readable dates everywhere.
+  }
+
   function zoomed({transform}) {
     console.log(transform.k)
     // TODO: I have a feeling i'll eventually want to make this a little more
     // sophisticated, e.g. instead of a fixed set of k-thresholds, factor in
     // the viewport size.  smaller size might mean i can get away with finer
     // resolution for a more zoomed-out perspective?
-    if (transform.k > 0.3) {
+    // or see how big `visibleSecondsBetween` is and step up if it's beyond some
+    // threshold (but this might fail for really fast zoom-outs).  or calculate
+    // framerate and adjust based on that (but this might make it too frenetic).
+    // actually, fixed k-thresholds is probably the way, but they might be calculated
+    // at boot based on viewport size (and maybe geometry parameters) and fixed from
+    // then on out (or only adjusted if/when the viewport is resized).
+    if (transform.k > 0.2) {
       geo = geoSecond
     } else if (transform.k > 0.05) {
       geo = geoMinute
@@ -373,18 +434,6 @@ const simpleZoom = function() {
       // geo = geoE9  don't know why, but geoE9 breaks it
       geo = geoE7
     }
-    console.log(geo.baseDim.name)
-
-    // let containerTransform = transform
-    // let tallyTransform = d3.zoomIdentity
-    let tallyScale = 1
-    // while (containerTransform.k < 0.5) {
-    //   containerTransform = containerTransform.scale(2)
-    //   tallyScale *= 0.5
-    // }
-    // TODO: this idea seems like it's _kind of_ right... but you end up with really small tallyScale pretty fast, and that's probably a problem.  so next thing to try is to basically do this canvas-style -- don't use `transform` on `g` elements (or in `style`s?) but instead, calculate X, Y, width, and height of each tally on each invocation of this function.  similar to https://observablehq.com/@d3/zoom-canvas-rescaled?collection=@d3/d3-zoom.  then we hopefully won't get the artifacts that occur from tally `g`s not recalculating their transform until the `secs` data changes... or is that an orthogonal issue?  i don't know.  maybe so.  maybe i'll need to work the transforms into the `secs` data so that d3 sees it as a change.  also, not sure if the new approach will hurt performance, but i do think it's the only option once we move to canvas, so may as well get it figured out now with SVG because SVG is easier to debug/inspect in the DOM
-    //
-    // actually, from https://observablehq.com/@d3/zoom-svg-rescaled?collection=@d3/d3-zoom, maybe i don't have to shoehorn the transform into `secs` at all, i just have to call `.attr(A, fn)` for A='width', A='height', A='x', A='y', that way the data doesn't change, and therefore the DOM elements don't get replaced, but the attrs of the DOM elements do change.
 
     const p0int = [
       Math.trunc(transform.invertX(0)),
@@ -400,26 +449,11 @@ const simpleZoom = function() {
     const firstSec = geo.nearestSecond(...p0int)
     const lastSec = geo.nearestSecond(...p1int)
 
-    const secs = [...geo.visibleSecondsBetween(firstSec.second, lastSec.second)]
-    console.log(`num seconds: ${secs.length}`)
+    visibleSecs = [...geo.visibleSecondsBetween(firstSec.second, lastSec.second)]
+    console.log(`num ${geo.baseDim.name}s: ${visibleSecs.length}`)
 
-    tallies = tallies.data(secs, d => d)
-      .join(enter => enter.append('rect')
-        .attr('fill', 'black')
-      )
-      .attr('width', _sec => transform.k * geo.baseDim.width)
-      .attr('height', _sec => transform.k * geo.baseDim.height)
-      // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
-      // the result of the `geo.locationOf` calculation
-      .each((sec, i, nodes) => {
-        const l = geo.locationOf(sec)
-        // `nodes[i]` is the actual DOM node in question, not the D3 selection,
-        // so must use `.setAttribute` as opposed to `.attr`
-        nodes[i].setAttribute('x', transform.applyX(l.x))
-        nodes[i].setAttribute('y', transform.applyY(l.y))
-      })
-    // TODO: bring back debug text writing each second value on each tally.  or get straight to
-    // something more like the final implementation of human-readable dates everywhere.
+    curTransform = transform
+    drawTallies()
   }
 
   return svg.node();
@@ -453,6 +487,10 @@ function runTests() {
     }
   }
 
+  function equal(v1, v2) {
+    if (v1 != v2) return `values differ: ${v1} <> ${v2}`
+  }
+
   // ===================================
   // Geometry
   // ===================================
@@ -461,6 +499,8 @@ function runTests() {
   geo0.addDimension('hour', 4, geo0.lastDim.pad * 2)
   geo0.addDimension('day', 4, geo0.lastDim.pad * 2)
   geo0.addDimension('week', 7, geo0.lastDim.pad * 2)
+
+  assert(equal(geo0.valueOfSecond([0,1,0,2,3]), 3+2*4+1*4*4*4))
 
   assert(xyEqual(geo0.compareSecondsXY([0,0,0,58,59], [0,0,0,59,0]), { x: -1, y: 1 }))
   assert(xyEqual(geo0.compareSecondsXY([0,0,0,59,0], [0,0,0,59,1]), { x: 1, y: 0 }))
