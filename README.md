@@ -33,6 +33,8 @@ git push dokku HEAD:main
 - [ ] a cross-fade from the current geo to the next one encountered during a zoom, so it's not a harsh snapping from one zoom resolution to the next.
 - [ ] start animating the live seconds ticking away, and frame the landing page to have the current day in view. maybe we stretch the canvas such that the viewport always shows exactly 1 day at the start? and maybe we use a second axis of X for portrait mode viewports and a second axis of Y for landscape ones, or vice versa. dunno, will have to experiment and see what looks best.
 - [ ] landmarks! it's time! figure out how they should look and start inserting some!
+- [ ] on touch devices, the thing gets confused about whether you're trying to pinch-zoom the SVG or the whole page. set the page attributes to make it not scalable. and while you're fixing the page, set a better title and favicon
+- [ ] a FPS plot that shows a window of the last several seconds
 
 ## Notes
 

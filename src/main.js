@@ -342,6 +342,9 @@ const simpleZoom = function() {
   let subTalliesGroup = svg.append("g")
   let subTallies = subTalliesGroup.selectAll('rect')
 
+  let fpsDisplay = svg.append("g")
+  let fpsText = fpsDisplay.selectAll('text')
+
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
   let visibleSubSecs = []
@@ -359,6 +362,21 @@ const simpleZoom = function() {
       drawTallies()
     }
   });
+
+
+  let lastUpdate = 0
+
+  d3.timer(() => {
+    let now = Date.now()
+    let fps = Math.round(10000 / (now - lastUpdate)) / 10
+    lastUpdate = now
+    // console.log(fps)
+    fpsText = fpsText.data([fps], d=>0)
+      .join(enter => enter.append('text'))
+      .attr('style', 'transform: scale(3) translate(5px, 20px)')
+      .attr('fill', 'green')
+      .text(fps => `FPS: ${fps}`)
+  })
 
   window.boop = () => {
     console.log(visibleSecs[1])
