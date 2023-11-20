@@ -217,6 +217,9 @@ class Geometry {
   }
 
   incrementInAxis(axis, sec) {
+    // degenerate case
+    if (this.#dims.length === 1 && this.#dims[0].axis !== axis) return null
+
     const newSec = [...sec]
     for (let i = this.#dims.length - 1, j = 0; i >= 0; i--, j++) {
       if (this.#dims[i].axis != axis) continue
@@ -294,7 +297,6 @@ class Geometry {
   }
 }
 
-
 let geo = Geometry.withSecondDims(16, 128, 2)
 geo.addDimension('minute', 60, 8)
 geo.addDimension('hour', 60, 64)
@@ -306,6 +308,8 @@ geo.addDimension('millenium', 10, geo.lastDim.pad * 5)
 geo.addDimension('e5', 100, geo.lastDim.pad * 5)
 geo.addDimension('e7', 100, geo.lastDim.pad * 5)
 geo.addDimension('e9', 100, geo.lastDim.pad * 5)
+let geoSub = geo.subGeo()
+let subOpacity = 0
 const geoSecond = geo
 const geoMinute = geo.subGeo()
 const geoHour = geoMinute.subGeo()
@@ -317,7 +321,6 @@ const geoMillenium = geoCentury.subGeo()
 const geoE5 = geoMillenium.subGeo()
 const geoE7 = geoE5.subGeo()
 const geoE9 = geoE7.subGeo()
-console.log("E9 dims:", geoE9.lastDim.width, geoE9.lastDim.height)
 
 
 window.rescale = () => {
@@ -336,8 +339,12 @@ const simpleZoom = function() {
   let talliesGroup = svg.append("g")
   let tallies = talliesGroup.selectAll('rect')
 
+  let subTalliesGroup = svg.append("g")
+  let subTallies = subTalliesGroup.selectAll('rect')
+
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
+  let visibleSubSecs = []
   const timeAtBoot = 200 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
   // i'd have to figure out how to set the camera to include "now" on boot
   let nowSec = timeAtBoot
@@ -359,6 +366,163 @@ const simpleZoom = function() {
     drawTallies()
   }
 
+  function drawTallies() {
+    tallies = tallies.data(visibleSecs, d => d)
+      .join(enter => enter.append('rect'))
+      // .attr('fill', sec => geo.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
+      .attr('fill', sec => geo.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
+      .attr('width', _sec => curTransform.k * geo.baseDim.width)
+      .attr('height', _sec => curTransform.k * geo.baseDim.height)
+      // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
+      // the result of the `geo.locationOf` calculation
+      .each((sec, i, nodes) => {
+        const l = geo.locationOf(sec)
+        // `nodes[i]` is the actual DOM node in question, not the D3 selection,
+        // so must use `.setAttribute` as opposed to `.attr`
+        nodes[i].setAttribute('x', curTransform.applyX(l.x))
+        nodes[i].setAttribute('y', curTransform.applyY(l.y))
+      })
+    // TODO: bring back debug text writing each second value on each tally.  or get straight to
+    // something more like the final implementation of human-readable dates everywhere.
+    subTallies = subTallies.data(visibleSubSecs, d => d)
+      .join(enter => enter.append('rect'))
+      .attr('fill', sec => geoSub.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
+      .attr('fill-opacity', subOpacity)
+      .attr('width', _sec => curTransform.k * geoSub.baseDim.width)
+      .attr('height', _sec => curTransform.k * geoSub.baseDim.height)
+      // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
+      // the result of the `geoSub.locationOf` calculation
+      .each((sec, i, nodes) => {
+        const l = geoSub.locationOf(sec)
+        // `nodes[i]` is the actual DOM node in question, not the D3 selection,
+        // so must use `.setAttribute` as opposed to `.attr`
+        nodes[i].setAttribute('x', curTransform.applyX(l.x))
+        nodes[i].setAttribute('y', curTransform.applyY(l.y))
+      })
+  }
+
+  // "geoBreakpoints"
+  const geoBreakpoints = [
+    // seconds
+    0.300000000,
+    // seconds + minutes
+    0.200000000,
+    // minutes
+    0.100000000,
+    // minutes + hours
+    0.050000000,
+    // hours
+    0.010000000,
+    // hours + days
+    0.005000000,
+    // days
+    0.003000000,
+    // days + weeks
+    0.001000000,
+    // weeks
+    0.000500000,
+    // weeks + years
+    0.000300000,
+    // years
+    0.000100000,
+    // years + centuries
+    0.000050000,
+    // centuries
+    0.000008000,
+    // centuries + millenia
+    0.000005000,
+    // millenia
+    0.000000800,
+    // millenia + e5s
+    0.000000500,
+    // e5s
+    0.000000080,
+    // e5s + e7s
+    0.000000050,
+    // e7s
+    0.000000008,
+    // e7s + e9s
+    0.000000005,
+    // e9s
+  ]
+
+  // I know there's no way I'll understand this code even a week from now.
+  // Basically, I was writing a giant if-elif-else statement for setting `geo`
+  // and `geoSub` and `subOpacity`, and i decided i needed a more concise way,
+  // so I came up with geoPairs and geosForK
+  const geoPairs = (() => {
+    const alwaysZero = _k => 0
+    const subGeoOpacity = (gbHigh, gbLow) => k => (gbHigh - k) / (gbHigh - gbLow)
+    const res = [[geoSecond, null, alwaysZero]]
+    for (let i = 1; i <= geoBreakpoints.length; i++) {
+      if (i % 2) {
+        const prevGeo = res[i-1][0]
+        res.push([prevGeo, prevGeo.subGeo(), subGeoOpacity(geoBreakpoints[i-1], geoBreakpoints[i])])
+      } else {
+        const prevSubGeo = res[i-1][1]
+        res.push([prevSubGeo, null, alwaysZero])
+      }
+    }
+    return res
+  })()
+
+  function geosForK(k) {
+    let idx = 0
+    while (idx < geoBreakpoints.length) {
+      if (k > geoBreakpoints[idx]) break
+      idx++
+    }
+    return geoPairs[idx]
+  }
+
+  function zoomed({transform}) {
+    const k = transform.k
+    console.log(k)
+    // TODO: I have a feeling i'll eventually want to make this a little more
+    // sophisticated, e.g. instead of a fixed set of k-thresholds, factor in
+    // the viewport size.  smaller size might mean i can get away with finer
+    // resolution for a more zoomed-out perspective?
+    // or see how big `visibleSecondsBetween` is and step up if it's beyond some
+    // threshold (but this might fail for really fast zoom-outs).  or calculate
+    // framerate and adjust based on that (but this might make it too frenetic).
+    // actually, fixed k-thresholds is probably the way, but they might be calculated
+    // at boot based on viewport size (and maybe geometry parameters) and fixed from
+    // then on out (or only adjusted if/when the viewport is resized).
+    let soCalc
+    [geo, geoSub, soCalc] = geosForK(k)
+    subOpacity = soCalc(k)
+
+    const p0int = [
+      Math.trunc(transform.invertX(0)),
+      Math.trunc(transform.invertY(0)),
+    ]
+    const p1int = [
+      Math.trunc(transform.invertX(width)),
+      Math.trunc(transform.invertY(height)),
+    ]
+    console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
+    console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
+
+    const firstSec = geo.nearestSecond(...p0int)
+    const lastSec = geo.nearestSecond(...p1int)
+
+    visibleSecs = [...geo.visibleSecondsBetween(firstSec.second, lastSec.second)]
+    let debugMsg = `num ${geo.baseDim.name}s: ${visibleSecs.length}`
+    if (geoSub) {
+      const firstSubSec = geoSub.nearestSecond(...p0int)
+      const lastSubSec = geoSub.nearestSecond(...p1int)
+      visibleSubSecs = [...geoSub.visibleSecondsBetween(firstSubSec.second, lastSubSec.second)]
+      debugMsg += ` (+ ${visibleSubSecs.length} ${geoSub.baseDim.name}s)`
+    } else {
+      visibleSubSecs = []
+    }
+    console.log(debugMsg)
+
+    curTransform = transform
+    drawTallies()
+  }
+
+
   const zoom = d3.zoom()
     .extent([[0, 0], [width, height]])
     //.scaleExtent([1, 8])
@@ -377,84 +541,6 @@ const simpleZoom = function() {
   // shit, and it'll probably break at very small scales (i.e. zoomed out), too. maybe d3-tile
   // really will save my ass... maybe i need to map the full "canvas" onto a quadtree of tiles.
   // that shouldn't be too hard, i suppose.  just figure out the math.
-
-
-  function drawTallies() {
-    tallies = tallies.data(visibleSecs, d => d)
-      .join(enter => enter.append('rect'))
-      .attr('fill', sec => geo.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
-      .attr('width', _sec => curTransform.k * geo.baseDim.width)
-      .attr('height', _sec => curTransform.k * geo.baseDim.height)
-      // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
-      // the result of the `geo.locationOf` calculation
-      .each((sec, i, nodes) => {
-        const l = geo.locationOf(sec)
-        // `nodes[i]` is the actual DOM node in question, not the D3 selection,
-        // so must use `.setAttribute` as opposed to `.attr`
-        nodes[i].setAttribute('x', curTransform.applyX(l.x))
-        nodes[i].setAttribute('y', curTransform.applyY(l.y))
-      })
-    // TODO: bring back debug text writing each second value on each tally.  or get straight to
-    // something more like the final implementation of human-readable dates everywhere.
-  }
-
-  function zoomed({transform}) {
-    console.log(transform.k)
-    // TODO: I have a feeling i'll eventually want to make this a little more
-    // sophisticated, e.g. instead of a fixed set of k-thresholds, factor in
-    // the viewport size.  smaller size might mean i can get away with finer
-    // resolution for a more zoomed-out perspective?
-    // or see how big `visibleSecondsBetween` is and step up if it's beyond some
-    // threshold (but this might fail for really fast zoom-outs).  or calculate
-    // framerate and adjust based on that (but this might make it too frenetic).
-    // actually, fixed k-thresholds is probably the way, but they might be calculated
-    // at boot based on viewport size (and maybe geometry parameters) and fixed from
-    // then on out (or only adjusted if/when the viewport is resized).
-    if (transform.k > 0.2) {
-      geo = geoSecond
-    } else if (transform.k > 0.05) {
-      geo = geoMinute
-    } else if (transform.k > 0.005) {
-      geo = geoHour
-    } else if (transform.k > 0.001) {
-      geo = geoDay
-    } else if (transform.k > 0.0003) {
-      geo = geoWeek
-    } else if (transform.k > 0.00005) {
-      geo = geoYear
-    } else if (transform.k > 0.000005) {
-      geo = geoCentury
-    } else if (transform.k > 0.0000005) {
-      geo = geoMillenium
-    } else if (transform.k > 0.00000005) {
-      geo = geoE5
-    } else if (transform.k > 0.000000005) {
-      geo = geoE7
-    } else {
-      // geo = geoE9  don't know why, but geoE9 breaks it
-      geo = geoE7
-    }
-
-    const p0int = [
-      Math.trunc(transform.invertX(0)),
-      Math.trunc(transform.invertY(0)),
-    ]
-    const p1int = [
-      Math.trunc(transform.invertX(width)),
-      Math.trunc(transform.invertY(height)),
-    ]
-    console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
-    console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
-
-    const firstSec = geo.nearestSecond(...p0int)
-    const lastSec = geo.nearestSecond(...p1int)
-
-    visibleSecs = [...geo.visibleSecondsBetween(firstSec.second, lastSec.second)]
-    console.log(`num ${geo.baseDim.name}s: ${visibleSecs.length}`)
-
-    curTransform = transform
-    drawTallies()
-  }
 
   return svg.node();
 }

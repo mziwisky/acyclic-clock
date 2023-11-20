@@ -12,6 +12,8 @@ npm run dev
 
 ## Deploying
 
+TODO: stop building on server. build locally, deploy static files.
+
 I have a dokku instance set up. I deployed it there with the name "time". After
 the first deploy, I had to ssh in and do
 
