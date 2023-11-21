@@ -338,6 +338,7 @@ const simpleZoom = function() {
 
   let talliesGroup = svg.append("g")
   let tallies = talliesGroup.selectAll('rect')
+  let tallyLabels = talliesGroup.selectAll('text')
 
   let subTalliesGroup = svg.append("g")
   let subTallies = subTalliesGroup.selectAll('rect')
@@ -348,8 +349,9 @@ const simpleZoom = function() {
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
   let visibleSubSecs = []
-  const timeAtBoot = 200 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
-  // i'd have to figure out how to set the camera to include "now" on boot
+  const timeAtBoot = 457710623492434300 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
+  // i'd have to figure out how to set the camera to include "now" on boot.
+  // OK NEW TODO: i picked a semi-random place near-ish to now (14B years and change post bang) and set timeAtBoot and initial zoom accordingly.  and then discovered that this number is too big to increment by 1.  so i need to do something to deal with big numbers.  (64 bit integers would work.)
   let nowSec = timeAtBoot
 
   // TODO: be smart about killing the timer if all visible seconds are in the past
@@ -364,19 +366,19 @@ const simpleZoom = function() {
   });
 
 
-  let lastUpdate = 0
-
-  d3.timer(() => {
-    let now = Date.now()
-    let fps = Math.round(10000 / (now - lastUpdate)) / 10
-    lastUpdate = now
-    // console.log(fps)
-    fpsText = fpsText.data([fps], d=>0)
-      .join(enter => enter.append('text'))
-      .attr('style', 'transform: scale(3) translate(5px, 20px)')
-      .attr('fill', 'green')
-      .text(fps => `FPS: ${fps}`)
-  })
+  // let lastUpdate = 0
+  //
+  // d3.timer(() => {
+  //   let now = Date.now()
+  //   let fps = Math.round(10000 / (now - lastUpdate)) / 10
+  //   lastUpdate = now
+  //   // console.log(fps)
+  //   fpsText = fpsText.data([fps], d=>0)
+  //     .join(enter => enter.append('text'))
+  //     .attr('style', 'transform: scale(3) translate(5px, 20px)')
+  //     .attr('fill', 'green')
+  //     .text(fps => `FPS: ${fps}`)
+  // })
 
   window.boop = () => {
     console.log(visibleSecs[1])
@@ -400,8 +402,18 @@ const simpleZoom = function() {
         nodes[i].setAttribute('x', curTransform.applyX(l.x))
         nodes[i].setAttribute('y', curTransform.applyY(l.y))
       })
-    // TODO: bring back debug text writing each second value on each tally.  or get straight to
-    // something more like the final implementation of human-readable dates everywhere.
+    tallyLabels = tallyLabels.data(visibleSecs, d => d)
+      .join(enter => enter.append('text'))
+      .attr('style', sec => {
+        const l = geo.locationOf(sec)
+        const x = curTransform.applyX(l.x)
+        const y = curTransform.applyY(l.y)
+        const scale = 0.55 * curTransform.k
+        return `transform: rotate(90deg) scale(${scale}) translate(${y/scale + 7}px, -${x/scale + 9}px)`
+      })
+      .attr('fill', 'yellow')
+      .text(sec => sec)
+    // TODO: make tally labels human-friendly
     subTallies = subTallies.data(visibleSubSecs, d => d)
       .join(enter => enter.append('rect'))
       .attr('fill', sec => geoSub.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
@@ -417,6 +429,7 @@ const simpleZoom = function() {
         nodes[i].setAttribute('x', curTransform.applyX(l.x))
         nodes[i].setAttribute('y', curTransform.applyY(l.y))
       })
+
   }
 
   // "geoBreakpoints"
@@ -548,17 +561,12 @@ const simpleZoom = function() {
 
   svg
     .call(zoom)
-    .call(zoom.transform, d3.zoomIdentity)
+    // .call(zoom.transform, d3.zoomIdentity)
+    .call(zoom.transform, d3.zoomIdentity.scale(0.5).translate(-40004999500,-50000000000))
   // to set a new initial zoom, change the above line to something like:
   // .call(zoom.transform, d3.zoomIdentity
   //   .translate(someX, someY)
   //   .scale(someScale))
-  // TODO: this breaks at large translations, e.g.:
-  //   .call(zoom.transform, d3.zoomIdentity.translate(-10000000,-1000000000))
-  // so i'm probably going to have to figure out some kind of "wrapping" at some point.
-  // shit, and it'll probably break at very small scales (i.e. zoomed out), too. maybe d3-tile
-  // really will save my ass... maybe i need to map the full "canvas" onto a quadtree of tiles.
-  // that shouldn't be too hard, i suppose.  just figure out the math.
 
   return svg.node();
 }
