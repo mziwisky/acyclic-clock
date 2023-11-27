@@ -352,6 +352,7 @@ const simpleZoom = function() {
   const timeAtBoot = 457710623492434300 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
   // i'd have to figure out how to set the camera to include "now" on boot.
   // OK NEW TODO: i picked a semi-random place near-ish to now (14B years and change post bang) and set timeAtBoot and initial zoom accordingly.  and then discovered that this number is too big to increment by 1.  so i need to do something to deal with big numbers.  (64 bit integers would work.)
+  // TODO: IDEA: do more with my second-as-array.  count time with that.  functions for translating between a Date and a SAA.  also, less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
   let nowSec = timeAtBoot
 
   // TODO: be smart about killing the timer if all visible seconds are in the past
