@@ -47,23 +47,15 @@ const height = 600
 // sec1 < sec2 ==> -1
 // sec1 = sec2 ==> 0
 // sec1 > sec2 ==> 1
-// assumes the seconds come from the same Geometry
+// if seconds come from different Geometries (i.e. arrays are different lengths),
+// it only compares to the least significant value of the lowest common resolution.
 function compareSeconds(sec1, sec2) {
-  for (let i = 0; i < sec1.length; i++) {
+  const len = Math.min(sec1.length, sec2.length)
+  for (let i = 0; i < len; i++) {
     if (sec1[i] < sec2[i]) return -1
     if (sec1[i] > sec2[i]) return 1
   }
   return 0
-}
-
-function maxSecond(sec1, sec2) {
-  if (compareSeconds(sec1, sec2) < 0) return sec2
-  return sec1
-}
-
-function minSecond(sec1, sec2) {
-  if (compareSeconds(sec1, sec2) < 0) return sec1
-  return sec2
 }
 
 // simple elementwise sum, assumes arrays are same length
@@ -295,6 +287,22 @@ class Geometry {
     }
     return fullSec
   }
+
+  // both seconds can be partials
+  sum(sec1, sec2) {
+    const res = this.s(sec1)
+    const remainders = this.s(sec2)
+    for (let i = remainders.length - 1; i > 0; i--) {
+      const nextDim = this.#dims[i-1]
+      const sum = res[i] + remainders[i]
+      const quotient = Math.floor(sum / nextDim.rollupCnt)
+      const remainder = sum % nextDim.rollupCnt
+      res[i] = remainder
+      remainders[i-1] += quotient
+    }
+    res[0] += remainders[0]
+    return res
+  }
 }
 
 let geo = Geometry.withSecondDims(16, 128, 2)
@@ -349,19 +357,27 @@ const simpleZoom = function() {
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
   let visibleSubSecs = []
-  const timeAtBoot = 457710623492434300 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
+  const unixEpoch = [13,70,0,0,0,0,0,0,0,0,0]
+  // const timeAtBoot = 457710623492434300 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
   // i'd have to figure out how to set the camera to include "now" on boot.
-  // OK NEW TODO: i picked a semi-random place near-ish to now (14B years and change post bang) and set timeAtBoot and initial zoom accordingly.  and then discovered that this number is too big to increment by 1.  so i need to do something to deal with big numbers.  (64 bit integers would work.)
-  // TODO: IDEA: do more with my second-as-array.  count time with that.  functions for translating between a Date and a SAA.  also, less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
-  let nowSec = timeAtBoot
+  // TODO: less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
 
+
+  // TODO: might eventually need general functions for translating (both ways?) between Date and second-as-array
+  const calcNowSec = () => geoSecond.sum(unixEpoch, [Math.floor(Date.now() / 1000)])
+
+  let nowSec = calcNowSec()
+  let totalSecElapsed = 0
   // TODO: be smart about killing the timer if all visible seconds are in the past
-  // also i'll have to use Date.now() if i'm going to be turning the timer on and off
+  // also change redraw threshold check based on zoom.  e.g. if we're zoomed out far enough to not see individual seconds,
+  // then we don't need to redraw each second.  maybe each minute or hour or week.  not quite as simple as just looking at
+  // the resolution of the current geo, because we want to draw partial tallies soon, so it might be something like taking
+  // one or two steps finer resolution from current geo and using that as the threshold granularity.
   d3.timer((msElapsed) => {
     const secElapsed = Math.floor(msElapsed / 1000)
-    const nextSec = timeAtBoot + secElapsed
-    if (nextSec != nowSec) {
-      nowSec = nextSec
+    if (totalSecElapsed != secElapsed) {
+      totalSecElapsed = secElapsed
+      nowSec = calcNowSec()
       drawTallies()
     }
   });
@@ -390,8 +406,7 @@ const simpleZoom = function() {
   function drawTallies() {
     tallies = tallies.data(visibleSecs, d => d)
       .join(enter => enter.append('rect'))
-      // .attr('fill', sec => geo.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
-      .attr('fill', sec => geo.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
+      .attr('fill', sec => compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black')
       .attr('width', _sec => curTransform.k * geo.baseDim.width)
       .attr('height', _sec => curTransform.k * geo.baseDim.height)
       // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
@@ -417,7 +432,7 @@ const simpleZoom = function() {
     // TODO: make tally labels human-friendly
     subTallies = subTallies.data(visibleSubSecs, d => d)
       .join(enter => enter.append('rect'))
-      .attr('fill', sec => geoSub.valueOfSecond(sec) > nowSec ? 'lightgray' : 'black')
+      .attr('fill', sec => compareSeconds(sec, nowSec) >= 0 ? 'lightgray' : 'black')
       .attr('fill-opacity', subOpacity)
       .attr('width', _sec => curTransform.k * geoSub.baseDim.width)
       .attr('height', _sec => curTransform.k * geoSub.baseDim.height)
@@ -433,7 +448,6 @@ const simpleZoom = function() {
 
   }
 
-  // "geoBreakpoints"
   const geoBreakpoints = [
     // seconds
     0.300000000,
@@ -560,14 +574,14 @@ const simpleZoom = function() {
     //.scaleExtent([1, 8])
     .on("zoom", zoomed)
 
+  const initialLoc = geo.locationOf(nowSec)
   svg
     .call(zoom)
     // .call(zoom.transform, d3.zoomIdentity)
-    .call(zoom.transform, d3.zoomIdentity.scale(0.5).translate(-40004999500,-50000000000))
-  // to set a new initial zoom, change the above line to something like:
-  // .call(zoom.transform, d3.zoomIdentity
-  //   .translate(someX, someY)
-  //   .scale(someScale))
+    .call(zoom.transform, d3.zoomIdentity.scale(0.5).translate(-initialLoc.x,-initialLoc.y))
+  // TODO: set initial scale/translate to something that _includes_ initialLoc, but isn't precisely at it.
+  // e.g. "truncate" to the beginning of the day, and scale appropriately to see the whole day.  that scale
+  // probably depends on the dims of the viewport.
 
   return svg.node();
 }
@@ -629,8 +643,13 @@ function runTests() {
 
   assert(secondsEqual(sumElements([0,20,3,5], [0,1,0,15]), [0,21,3,20]))
 
-  assert(secondsEqual(maxSecond([0,0,58,0], [0,0,0,0]), [0,0,58,0]))
-  assert(secondsEqual(minSecond([0,1,0,8], [0,1,0,0]), [0,1,0,0]))
+  assert(secondsEqual(geo0.sum([0,0,0,0,0], [2]), [0,0,0,0,2]))
+  assert(secondsEqual(geo0.sum([0,0,0,0,0], [2,2]), [0,0,0,2,2]))
+  assert(secondsEqual(geo0.sum([0,0,0,0,0], [4]), [0,0,0,1,0]))
+  assert(secondsEqual(geo0.sum([0,1,2,2,2], [4]), [0,1,2,3,2]))
+  assert(secondsEqual(geo0.sum([0,1,2,2,2], [16]), [0,1,3,2,2]))
+  assert(secondsEqual(geo0.sum([0,1,2,3,2], [17]), [0,1,3,3,3]))
+  assert(secondsEqual(geo0.sum([1,6,3,3,3], [1]), [2,0,0,0,0]))
 
   assert(secondsEqual(geo0.incrementX([1,1,1,1,1]), [1,1,1,1,2]))
   assert(secondsEqual(geo0.incrementX([1,1,1,1,3]), [1,1,2,1,0]))
