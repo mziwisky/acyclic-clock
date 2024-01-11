@@ -402,6 +402,7 @@ const svgRenderer = function() {
 
 const canvasRenderer = function() {
   // courtesy of https://github.com/observablehq/stdlib/blob/7f0f870/src/dom/context2d.js
+  // for tips on dpi, see https://talk.observablehq.com/t/dom-context2d-vs-dom-canvas-what-am-i-doing-wrong/3836
   function context2d(width, height, dpi) {
     if (dpi == null) dpi = devicePixelRatio;
     var canvas = document.createElement("canvas");

@@ -27,6 +27,12 @@ and now it works! Deploy with:
 git push dokku HEAD:main
 ```
 
+### Dealing with a full disk
+
+If the deploy fails due to the host running out of space (e.g. an immediate "error: remote unpack failed: unable to create temporary object directory", or a later "/home/dokku/.basher/bash: line 1: main: command not found", or perhaps some other error during the remote build), ssh in and do `docker image prune -a` and try again.
+
+Also worth trying: `dokku repo:purge-cache <app>` for each app on the server
+
 ## TODO
 
 - [ ] it think needs a scale in the corner. something dynamic, like google maps' scale that shows 10 feet or 20 or 50 or 100 feet or 1 mile or 2 or 5 or 10 or 20 miles, etc. but this one is a 2D scale. i dunno, will that be confusing? because each axis isn't linear, it has big leaps when you cross over a padding. still might be a useful visual aid though? so it would show that 18px in the X direction is a second, 136px in the Y direction is a minute, hourGeo.sizeWithPad px in the X is an hour, etc.
