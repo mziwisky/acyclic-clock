@@ -432,7 +432,7 @@ const simpleZoom = function() {
     // TODO: make tally labels human-friendly
     subTallies = subTallies.data(visibleSubSecs, d => d)
       .join(enter => enter.append('rect'))
-      .attr('fill', sec => compareSeconds(sec, nowSec) >= 0 ? 'lightgray' : 'black')
+      .attr('fill', sec => compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black')
       .attr('fill-opacity', subOpacity)
       .attr('width', _sec => curTransform.k * geoSub.baseDim.width)
       .attr('height', _sec => curTransform.k * geoSub.baseDim.height)
