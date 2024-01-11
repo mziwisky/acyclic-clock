@@ -338,6 +338,7 @@ window.rescale = () => {
 
 const svgRenderer = function() {
   const svg = d3.create("svg")
+  // TODO: this width/height global variable usage is going to bite eventually
       .attr("viewBox", [0, 0, width, height]);
 
   let talliesGroup = svg.append("g")
@@ -399,8 +400,47 @@ const svgRenderer = function() {
   }
 }
 
+const canvasRenderer = function() {
+  // courtesy of https://github.com/observablehq/stdlib/blob/7f0f870/src/dom/context2d.js
+  function context2d(width, height, dpi) {
+    if (dpi == null) dpi = devicePixelRatio;
+    var canvas = document.createElement("canvas");
+    canvas.width = width * dpi;
+    canvas.height = height * dpi;
+    canvas.style.width = width + "px";
+    var context = canvas.getContext("2d");
+    context.scale(dpi, dpi);
+    return context;
+  }
+
+  // TODO: this width/height global variable usage is going to bite eventually
+  const context = context2d(width, height)
+
+  function draw(visibleSecs, visibleSubSecs, nowSec, curTransform) {
+    context.clearRect(0, 0, width, height);
+    const tallyWidth = curTransform.k * geo.baseDim.width
+    const tallyHeight = curTransform.k * geo.baseDim.height
+    for (const sec of visibleSecs) {
+      const l = geo.locationOf(sec)
+      const x = curTransform.applyX(l.x)
+      const y = curTransform.applyY(l.y)
+      context.fillStyle = compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black'
+      context.fillRect(x, y, tallyWidth, tallyHeight)
+    }
+    // TODO: subsecs, text labels
+  }
+
+  return {
+    zoomable: d3.select(context.canvas),
+    node: context.canvas,
+    draw,
+  }
+}
+
 const simpleZoom = function() {
   let { zoomable, node, draw } = svgRenderer()
+  // let { zoomable, node, draw } = canvasRenderer()
+
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
   let visibleSubSecs = []
