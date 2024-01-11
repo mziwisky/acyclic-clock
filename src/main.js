@@ -336,11 +336,7 @@ window.rescale = () => {
   // ACTUALLY, do i even need to?  things are now working as-is!  i've got some extreme numbers involved in some of the math, but if it ain't broke, go work on something more interesting
 }
 
-const bigBangYearsAgo = 13.787e9
-const bigBangSecondsAgo = bigBangYearsAgo * 365 * 24 * 60 * 60
-
-
-const simpleZoom = function() {
+const svgRenderer = function() {
   const svg = d3.create("svg")
       .attr("viewBox", [0, 0, width, height]);
 
@@ -351,59 +347,8 @@ const simpleZoom = function() {
   let subTalliesGroup = svg.append("g")
   let subTallies = subTalliesGroup.selectAll('rect')
 
-  let fpsDisplay = svg.append("g")
-  let fpsText = fpsDisplay.selectAll('text')
-
-  let curTransform = d3.zoomIdentity
-  let visibleSecs = []
-  let visibleSubSecs = []
-  const unixEpoch = [13,70,0,0,0,0,0,0,0,0,0]
-  // const timeAtBoot = 457710623492434300 // TODO: this should be bigBangSecondsAgo (plus unix epoch maybe?) but then
-  // i'd have to figure out how to set the camera to include "now" on boot.
-  // TODO: less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
-
-
-  // TODO: might eventually need general functions for translating (both ways?) between Date and second-as-array
-  const calcNowSec = () => geoSecond.sum(unixEpoch, [Math.floor(Date.now() / 1000)])
-
-  let nowSec = calcNowSec()
-  let totalSecElapsed = 0
-  // TODO: be smart about killing the timer if all visible seconds are in the past
-  // also change redraw threshold check based on zoom.  e.g. if we're zoomed out far enough to not see individual seconds,
-  // then we don't need to redraw each second.  maybe each minute or hour or week.  not quite as simple as just looking at
-  // the resolution of the current geo, because we want to draw partial tallies soon, so it might be something like taking
-  // one or two steps finer resolution from current geo and using that as the threshold granularity.
-  d3.timer((msElapsed) => {
-    const secElapsed = Math.floor(msElapsed / 1000)
-    if (totalSecElapsed != secElapsed) {
-      totalSecElapsed = secElapsed
-      nowSec = calcNowSec()
-      drawTallies()
-    }
-  });
-
-
-  // let lastUpdate = 0
-  //
-  // d3.timer(() => {
-  //   let now = Date.now()
-  //   let fps = Math.round(10000 / (now - lastUpdate)) / 10
-  //   lastUpdate = now
-  //   // console.log(fps)
-  //   fpsText = fpsText.data([fps], d=>0)
-  //     .join(enter => enter.append('text'))
-  //     .attr('style', 'transform: scale(3) translate(5px, 20px)')
-  //     .attr('fill', 'green')
-  //     .text(fps => `FPS: ${fps}`)
-  // })
-
-  window.boop = () => {
-    console.log(visibleSecs[1])
-    visibleSecs[1] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
-    drawTallies()
-  }
-
-  function drawTallies() {
+  // TODO: feels wrong to have to pass in visibleSubSecs... but is it? maybe not. this function gets called even when the zoom doesn't change. we want to be able to keep visible{Secs,SubSecs,SubSubSecs,...} in state and not recalculate them each time this is called.  and this should be a pure function (essentially, but not really, because it's updating a dom element), so it shouldn't be keeping that state.
+  function draw(visibleSecs, visibleSubSecs, nowSec, curTransform) {
     tallies = tallies.data(visibleSecs, d => d)
       .join(enter => enter.append('rect'))
       .attr('fill', sec => compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black')
@@ -445,8 +390,58 @@ const simpleZoom = function() {
         nodes[i].setAttribute('x', curTransform.applyX(l.x))
         nodes[i].setAttribute('y', curTransform.applyY(l.y))
       })
-
   }
+
+  return {
+    zoomable: svg,
+    node: svg.node(),
+    draw,
+  }
+}
+
+const simpleZoom = function() {
+  let { zoomable, node, draw } = svgRenderer()
+  let curTransform = d3.zoomIdentity
+  let visibleSecs = []
+  let visibleSubSecs = []
+  const unixEpoch = [13,70,0,0,0,0,0,0,0,0,0]
+  // TODO: less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
+
+
+  // TODO: might eventually need general functions for translating (both ways?) between Date and second-as-array
+  const calcNowSec = () => geoSecond.sum(unixEpoch, [Math.floor(Date.now() / 1000)])
+
+  let nowSec = calcNowSec()
+  let totalSecElapsed = 0
+  // TODO: be smart about killing the timer if all visible seconds are in the past
+  // also change redraw threshold check based on zoom.  e.g. if we're zoomed out far enough to not see individual seconds,
+  // then we don't need to redraw each second.  maybe each minute or hour or week.  not quite as simple as just looking at
+  // the resolution of the current geo, because we want to draw partial tallies soon, so it might be something like taking
+  // one or two steps finer resolution from current geo and using that as the threshold granularity.
+  d3.timer((msElapsed) => {
+    const secElapsed = Math.floor(msElapsed / 1000)
+    if (totalSecElapsed != secElapsed) {
+      totalSecElapsed = secElapsed
+      nowSec = calcNowSec()
+      draw(visibleSecs, visibleSubSecs, nowSec, curTransform)
+    }
+  });
+
+
+  // TODO: maybe just draw this in a <p> that hovers over the rest of the DOM in the top-left or something.
+  // let lastUpdate = 0
+  //
+  // d3.timer(() => {
+  //   let now = Date.now()
+  //   let fps = Math.round(10000 / (now - lastUpdate)) / 10
+  //   lastUpdate = now
+  //   // console.log(fps)
+  //   fpsText = fpsText.data([fps], d=>0)
+  //     .join(enter => enter.append('text'))
+  //     .attr('style', 'transform: scale(3) translate(5px, 20px)')
+  //     .attr('fill', 'green')
+  //     .text(fps => `FPS: ${fps}`)
+  // })
 
   const geoBreakpoints = [
     // seconds
@@ -565,7 +560,7 @@ const simpleZoom = function() {
     console.log(debugMsg)
 
     curTransform = transform
-    drawTallies()
+    draw(visibleSecs, visibleSubSecs, nowSec, curTransform)
   }
 
 
@@ -575,7 +570,7 @@ const simpleZoom = function() {
     .on("zoom", zoomed)
 
   const initialLoc = geo.locationOf(nowSec)
-  svg
+  zoomable
     .call(zoom)
     // .call(zoom.transform, d3.zoomIdentity)
     .call(zoom.transform, d3.zoomIdentity.scale(0.5).translate(-initialLoc.x,-initialLoc.y))
@@ -583,7 +578,7 @@ const simpleZoom = function() {
   // e.g. "truncate" to the beginning of the day, and scale appropriately to see the whole day.  that scale
   // probably depends on the dims of the viewport.
 
-  return svg.node();
+  return node;
 }
 
 function runTests() {
