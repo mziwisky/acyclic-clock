@@ -1,4 +1,4 @@
-// import './style.css'
+import './style.css'
 //
 // age of universe: 13.7 billion years
 // = 4.32e17 sec
@@ -33,6 +33,7 @@ import * as d3 from 'd3'
 import { Geometry } from './geometry'
 import { svgRenderer } from './svg-renderer'
 import { canvasRenderer } from './canvas-renderer'
+import { fpsToggler } from './performance'
 
 // TODO: this width/height global variable usage is going to bite eventually
 const width = 600
@@ -65,6 +66,8 @@ const doDatThang = function() {
   let { zoomable, node, draw } = svgRenderer(width, height)
   // let { zoomable, node, draw } = canvasRenderer(width, height)
 
+  zoomable.attr('class', 'theAction')
+
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
   let visibleSubSecs = []
@@ -91,21 +94,6 @@ const doDatThang = function() {
     }
   });
 
-
-  // TODO: maybe just draw this in a <p> that hovers over the rest of the DOM in the top-left or something.
-  // let lastUpdate = 0
-  //
-  // d3.timer(() => {
-  //   let now = Date.now()
-  //   let fps = Math.round(10000 / (now - lastUpdate)) / 10
-  //   lastUpdate = now
-  //   // console.log(fps)
-  //   fpsText = fpsText.data([fps], d=>0)
-  //     .join(enter => enter.append('text'))
-  //     .attr('style', 'transform: scale(3) translate(5px, 20px)')
-  //     .attr('fill', 'green')
-  //     .text(fps => `FPS: ${fps}`)
-  // })
 
   const geoBreakpoints = [
     // seconds
@@ -247,3 +235,12 @@ const doDatThang = function() {
 const appDiv = document.getElementById('app')
 const theGoods = doDatThang()
 appDiv.appendChild(theGoods)
+
+const toggleFps = fpsToggler(appDiv)
+
+// keyboard shortcuts!
+document.addEventListener('keydown', evt => {
+  if (evt.key == 'f') {
+    toggleFps()
+  }
+})
