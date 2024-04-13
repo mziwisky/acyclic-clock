@@ -258,6 +258,20 @@ export class Geometry {
     res[0] += remainders[0]
     return res
   }
+
+  // TODO: better name. "fill" is drawing-specific, Geometry shouldn't care about drawing.  err... what am i talking about, it's ALL about drawing
+  getFillProportions(targetSec, nowSec) {
+    const nowComp = compareSeconds(targetSec, nowSec)
+    if (nowComp > 0) return [0.0]
+    if (nowComp < 0) return [1.0]
+
+    if (nowSec.length === targetSec.length) return [1.0]
+    const res = []
+    for (let i = targetSec.length; i < nowSec.length; i++) {
+      res.push(nowSec[i] / this.#dims[i-1].rollupCnt)
+    }
+    return res
+  }
 }
 
 function runTests() {
@@ -351,6 +365,45 @@ function runTests() {
       ...geo0.secondsBetween([1,1,0,0,0], [1,1,0,0,3]),
       ...geo0.secondsBetween([1,1,1,0,0], [1,1,1,0,1]),
     ]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0,0,1], [0,0,0,0,0]),
+    [0.0]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0,0,1], [0,0,0,0,2]),
+    [1.0]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0,0,1], [0,0,0,0,1]),
+    [1.0]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0,0], [0,0,0,1,2]),
+    [1.0]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0,1], [0,0,0,0,2]),
+    [0.0]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0,0], [0,0,0,0,2]),
+    [0.5]
+  ))
+
+  assert(secondsEqual(
+    geo0.getFillProportions([0,0,0], [0,0,0,1,2]),
+    [0.25, 0.5] // TODO: right?  can i work with that? turn it into a drawing?
+    // one number means "fill it this much"
+    // two means "fill it as much as the first says, then fill the next increment as much as the second says".  so that's.... not enough information, i'd say.  needs to be something like
+    // [0.25, [0.25, 0.5]]
+    // which says (fill up 25%, then the next 25% gets filled up 50% in the other dimension
   ))
 
   const geo = Geometry.withSecondDims(16, 128, 2)

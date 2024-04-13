@@ -22,14 +22,31 @@ export const canvasRenderer = function(width, height) {
 
   function draw(geo, geoSub, subOpacity, visibleSecs, visibleSubSecs, nowSec, curTransform) {
     context.clearRect(0, 0, width, height);
-    const tallyWidth = curTransform.k * geo.baseDim.width
-    const tallyHeight = curTransform.k * geo.baseDim.height
+    let tallyWidth = curTransform.k * geo.baseDim.width
+    let tallyHeight = curTransform.k * geo.baseDim.height
     for (const sec of visibleSecs) {
       const l = geo.locationOf(sec)
       const x = curTransform.applyX(l.x)
       const y = curTransform.applyY(l.y)
-      context.fillStyle = compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black'
+      const nowComp = compareSeconds(sec, nowSec)
+      if (nowComp === 0) {
+        context.fillStyle = 'red'
+        // TODO: calling compareSeconds and then calling getFillProportions is obviously wasteful, because the latter calls the former anyway.
+        // ALSO TODO: this is clearly wrong (e.g. always adjusting Width, never Height; only caring about the 0th proportion; the result showing lots of unintended shortened tallies), but it's a quick and dirty demonstration that i'm on the right track
+        const proportions = geo.getFillProportions(sec, nowSec)
+        tallyWidth *= proportions[0]
+        // context.fillRect(x, y, tallyWidth, tallyHeight)
+      }
+      else if (nowComp > 0) {
+        context.fillStyle = 'lightgray'
+        // context.fillRect(x, y, tallyWidth, tallyHeight)
+      }
+      else {
+        context.fillStyle = 'black'
+        // context.fillRect(x, y, tallyWidth, tallyHeight)
+      }
       context.fillRect(x, y, tallyWidth, tallyHeight)
+
     }
     // TODO: subsecs, text labels
   }

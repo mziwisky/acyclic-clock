@@ -13,11 +13,22 @@ export const svgRenderer = function(width, height) {
   let subTalliesGroup = svg.append("g")
   let subTallies = subTalliesGroup.selectAll('rect')
 
+  function calcFill(nowSec) {
+    return (sec) => {
+      const comp = compareSeconds(sec, nowSec)
+      if (comp === 0) return 'red'
+      if (comp > 0) return 'lightgray'
+      return 'black'
+    }
+  }
+
   // TODO: feels wrong to have to pass in visibleSubSecs... but is it? maybe not. this function gets called even when the zoom doesn't change. we want to be able to keep visible{Secs,SubSecs,SubSubSecs,...} in state and not recalculate them each time this is called.  and this should be a pure function (essentially, but not really, because it's updating a dom element), so it shouldn't be keeping that state.
   function draw(geo, geoSub, subOpacity, visibleSecs, visibleSubSecs, nowSec, curTransform) {
+    console.log("NOW: " + nowSec)
     tallies = tallies.data(visibleSecs, d => d)
       .join(enter => enter.append('rect'))
-      .attr('fill', sec => compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black')
+      // .attr('fill', sec => compareSeconds(sec, nowSec) > 0 ? 'lightgray' : 'black')
+      .attr('fill', calcFill(nowSec))
       .attr('width', _sec => curTransform.k * geo.baseDim.width)
       .attr('height', _sec => curTransform.k * geo.baseDim.height)
       // could use a `.attr` for each of `x` and `y`, but using `.each` allows us to reuse
