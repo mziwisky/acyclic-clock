@@ -265,7 +265,7 @@ export class Geometry {
     if (nowComp > 0) return [0.0]
     if (nowComp < 0) return [1.0]
 
-    if (nowSec.length === targetSec.length) return [1.0]
+    if (nowSec.length === targetSec.length) return [0.0]
     const res = []
     for (let i = targetSec.length; i < nowSec.length; i++) {
       res.push(nowSec[i] / this.#dims[i-1].rollupCnt)
@@ -379,7 +379,7 @@ function runTests() {
 
   assert(secondsEqual(
     geo0.getFillProportions([0,0,0,0,1], [0,0,0,0,1]),
-    [1.0]
+    [0.0]
   ))
 
   assert(secondsEqual(
