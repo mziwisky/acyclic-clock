@@ -64,7 +64,7 @@ const geoSecond = geo
 
 const doDatThang = function() {
   // let { zoomable, node, draw } = svgRenderer(width, height)
-  let { zoomable, node, draw } = canvasRenderer(width, height)
+  let { zoomable, node, draw } = canvasRenderer(geo, width, height)
 
   zoomable.attr('class', 'theAction')
 

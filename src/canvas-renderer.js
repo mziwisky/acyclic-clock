@@ -3,7 +3,8 @@ import { compareSeconds } from './geometry';
 
 // Q: what's still fun to do?
 // A: make the zoom look as artifact-free as possible. at this point, that means adding visible crossfading sub-seconds here, and having lower-res seconds able to draw partials down to next 2 higher resolutions. that should probably make it all look pretty seamless
-export const canvasRenderer = function(width, height) {
+// TODO: geoSecond should be all we actually ever need, i think... right? maybe?
+export const canvasRenderer = function(geoSecond, width, height) {
   // courtesy of https://github.com/observablehq/stdlib/blob/7f0f870/src/dom/context2d.js
   // for tips on dpi, see https://talk.observablehq.com/t/dom-context2d-vs-dom-canvas-what-am-i-doing-wrong/3836
   function context2d(width, height, dpi) {
@@ -30,23 +31,39 @@ export const canvasRenderer = function(width, height) {
       const y = curTransform.applyY(l.y)
       const nowComp = compareSeconds(sec, nowSec)
       if (nowComp === 0) {
-        context.fillStyle = 'red'
         // TODO: calling compareSeconds and then calling getFillProportions is obviously wasteful, because the latter calls the former anyway.
         // ALSO TODO: this is clearly wrong (e.g. always adjusting Width, never Height; only caring about the 0th proportion; the result showing lots of unintended shortened tallies), but it's a quick and dirty demonstration that i'm on the right track
-        const proportions = geo.getFillProportions(sec, nowSec)
-        tallyWidth *= proportions[0]
-        // context.fillRect(x, y, tallyWidth, tallyHeight)
+        const proportions = geoSecond.getFillProportions(sec, nowSec)
+        let axis = geo.baseDim.axis
+        let curGeo = geo
+        for (let prop of proportions) {
+          let tWidth = curTransform.k * curGeo.baseDim.width
+          let tHeight = curTransform.k * curGeo.baseDim.height
+          if (axis === 'y') {
+            context.fillStyle = 'blue'
+            context.fillRect(x, y, tWidth * prop, tHeight)
+            context.fillStyle = 'lightblue'
+            context.fillRect(x + tWidth * prop, y, tWidth * (1 - prop), tHeight)
+            axis = 'x'
+            curGeo = curGeo.superGeo()
+          } else {
+            context.fillStyle = 'blue'
+            context.fillRect(x, y, tWidth, tHeight * prop)
+            context.fillStyle = 'lightblue'
+            context.fillRect(x, y + tHeight * prop, tWidth, tHeight * (1 - prop))
+            axis = 'y'
+            curGeo = curGeo.superGeo()
+          }
+        }
       }
       else if (nowComp > 0) {
         context.fillStyle = 'lightgray'
-        // context.fillRect(x, y, tallyWidth, tallyHeight)
+        context.fillRect(x, y, tallyWidth, tallyHeight)
       }
       else {
         context.fillStyle = 'black'
-        // context.fillRect(x, y, tallyWidth, tallyHeight)
+        context.fillRect(x, y, tallyWidth, tallyHeight)
       }
-      context.fillRect(x, y, tallyWidth, tallyHeight)
-
     }
     // TODO: subsecs, text labels
   }
