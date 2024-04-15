@@ -36,23 +36,27 @@ export const canvasRenderer = function(geoSecond, width, height) {
         const proportions = geoSecond.getFillProportions(sec, nowSec)
         let axis = geo.baseDim.axis
         let curGeo = geo
+        let xOffset = 0, yOffset = 0
+        // if (proportions.length === 2) debugger
         for (let prop of proportions) {
           let tWidth = curTransform.k * curGeo.baseDim.width
           let tHeight = curTransform.k * curGeo.baseDim.height
           if (axis === 'y') {
             context.fillStyle = 'blue'
-            context.fillRect(x, y, tWidth * prop, tHeight)
+            context.fillRect(x + xOffset, y + yOffset, tWidth * prop, tHeight)
             context.fillStyle = 'lightblue'
-            context.fillRect(x + tWidth * prop, y, tWidth * (1 - prop), tHeight)
+            context.fillRect(x + xOffset + tWidth * prop, y + yOffset, tWidth * (1 - prop), tHeight)
             axis = 'x'
             curGeo = curGeo.superGeo()
+            xOffset += tWidth * prop
           } else {
             context.fillStyle = 'blue'
-            context.fillRect(x, y, tWidth, tHeight * prop)
+            context.fillRect(x + xOffset, y + yOffset, tWidth, tHeight * prop)
             context.fillStyle = 'lightblue'
-            context.fillRect(x, y + tHeight * prop, tWidth, tHeight * (1 - prop))
+            context.fillRect(x + xOffset, y + yOffset + tHeight * prop, tWidth, tHeight * (1 - prop))
             axis = 'y'
             curGeo = curGeo.superGeo()
+            yOffset += tHeight * prop
           }
         }
       }
