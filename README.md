@@ -36,11 +36,12 @@ Also worth trying: `dokku repo:purge-cache <app>` for each app on the server
 ## TODO
 
 - [ ] it think needs a scale in the corner. something dynamic, like google maps' scale that shows 10 feet or 20 or 50 or 100 feet or 1 mile or 2 or 5 or 10 or 20 miles, etc. but this one is a 2D scale. i dunno, will that be confusing? because each axis isn't linear, it has big leaps when you cross over a padding. still might be a useful visual aid though? so it would show that 18px in the X direction is a second, 136px in the Y direction is a minute, hourGeo.sizeWithPad px in the X is an hour, etc.
-- [ ] a cross-fade from the current geo to the next one encountered during a zoom, so it's not a harsh snapping from one zoom resolution to the next.
+- [ ] new idea about the scale -- dynamic little curly braces, `{`, that label intervals on screen. so like center of a second tally to center of next second tally is "1 second", center of minute tally to center of next minute tally is "1 minute (60s)", century tally span is labelled "1 century (3144960000s)", etc. choosing where (and how large) to draw those braces is going to be tricky. want them to fit in the padding whenever possible, i think. also probably want them to track a particular tally pair as long as it's on screen? i dunno.
+- [x] a cross-fade from the current geo to the next one encountered during a zoom, so it's not a harsh snapping from one zoom resolution to the next.
 - [ ] start animating the live seconds ticking away, and frame the landing page to have the current day in view. maybe we stretch the canvas such that the viewport always shows exactly 1 day at the start? and maybe we use a second axis of X for portrait mode viewports and a second axis of Y for landscape ones, or vice versa. dunno, will have to experiment and see what looks best.
 - [ ] landmarks! it's time! figure out how they should look and start inserting some!
 - [ ] on touch devices, the thing gets confused about whether you're trying to pinch-zoom the SVG or the whole page. set the page attributes to make it not scalable. and while you're fixing the page, set a better title and favicon
-- [ ] a FPS plot that shows a window of the last several seconds
+- [x] a FPS plot that shows a window of the last several seconds
 
 ## Notes
 

@@ -71,7 +71,7 @@ const doDatThang = function() {
   let curTransform = d3.zoomIdentity
   let visibleSecs = []
   let visibleSubSecs = []
-  const unixEpoch = [13,70,0,0,0,0,0,0,0,0,0]
+  const unixEpoch = [13,70,20,5,30,0,0,0,0,0,0]
   // TODO: less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
 
 
