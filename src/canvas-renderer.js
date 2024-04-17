@@ -36,6 +36,8 @@ export const canvasRenderer = function(geoSecond, width, height) {
       const y = curTransform.applyY(l.y)
       const nowComp = compareSeconds(sec, nowSec)
       if (nowComp === 0) {
+        // THIS IS THE OLD APPROACH which basically works, but has artifacts, so i'm leaving it in as i work out the new appraoch below
+        //
         // TODO: calling compareSeconds and then calling getFillProportions is obviously wasteful, because the latter calls the former anyway.
         const proportions = geoSecond.getFillProportions(sec, nowSec)
         // TODO: i think a proportions approach is somehow flawed.  other ideas:
@@ -76,6 +78,43 @@ export const canvasRenderer = function(geoSecond, width, height) {
             curGeo = curGeo.superGeo()
             yOffset += tHeight * prop
           }
+        }
+
+        // OK, here's the new approach -- find the dividing path that goes between the filled and empty portions of the Full Tally, and then use it to draw two polygons (the full portion and the empty portion).
+        // The idea is to get the bottom right corner of each "finer tally", then sort them left-to-right, then stair-step our way through them (up,right,up,right,...)
+        const finerTallies = []
+        for (let i = sec.length + 1; i <= nowSec.length; i++) {
+          let previousFullTallySec = nowSec.slice(0, i)
+          previousFullTallySec[previousFullTallySec.length-1]-- // TODO: handle when it started at 0
+          finerTallies.push({...geoSecond.locationOf(previousFullTallySec), sec: previousFullTallySec})
+        // TODO: remove the `sec` from the above. it's just for debugging.
+        }
+        const bottomRight = (t) => ({x: curTransform.applyX(t.x + t.w), y: curTransform.applyY(t.y + t.h), tally: t, sec: t.sec})
+        // TODO: remove the `tally` and `sec` from the above. they're just for debugging.
+        const byX = (pt1, pt2) => pt1.x - pt2.x
+        const brs = finerTallies.map(bottomRight).sort(byX)
+        console.log("BRS: ", brs)
+
+        // TODO: ensure this does the right thing for edge cases, e.g. nowSec = [13, 70, 20, 8, 0, 54, 24, 6, 7, 12, 5] -- that 6 for Days puts us at the bottom of a week columnTally, and we draw the path along the bottom edge of the tally.  this might cause problems once we try to fill the empty part.  (or it might not!)  Also 0's in there might cause problems (almost certainly will).
+        // TODO: figure out why this absolutely tanks performance.  dammit.  MAYBE it won't once we change from this cyan stroke to a pair of filled polygons.  but i guess if i had to, i could do this with overlapping fillRects.  fill to each bottom-right corner we just found.  actually that's not a bad idea at all now is it...
+        if (brs.length) {
+          let division = new Path2D()
+          if (geo.baseDim.axis === 'x') {
+            division.moveTo(x, brs[0].y)
+            division.lineTo(brs[0].x, brs[0].y)
+          } else {
+            division.moveTo(brs[0].x, brs[0].y)
+          }
+          for (let i = 1; i < brs.length; i++) {
+            division.lineTo(brs[i-1].x, brs[i].y)
+            division.lineTo(brs[i].x, brs[i].y)
+          }
+          if (geo.baseDim.axis === 'y') {
+            division.lineTo(brs[brs.length - 1].x, y)
+          }
+          context.strokeStyle = "cyan"
+          context.lineWidth = 1
+          context.stroke(division)
         }
       }
       else if (nowComp > 0) {

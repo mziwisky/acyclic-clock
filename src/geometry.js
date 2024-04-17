@@ -76,7 +76,7 @@ export class Geometry {
   }
 
   valueOfSecond(sec) {
-    const len = this.#dims.length
+    const len = sec.length
     let result = 0
     let multiplier = 1
     for (let i = len - 1; i >= 0; i--) {
@@ -90,8 +90,9 @@ export class Geometry {
   }
 
   locationOf(sec) {
-    const len = this.#dims.length
-    const result = { x: 0, y: 0 }
+    const len = sec.length
+    const matchedDim = this.#dims[len-1]
+    const result = { x: 0, y: 0, w: matchedDim.width, h: matchedDim.height }
     for (let i = 0; i < len; i++) {
       const dim = this.#dims[i]
       result[dim.axis] += sec[i] * dim.sizeWithPad
