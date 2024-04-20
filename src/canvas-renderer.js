@@ -3,8 +3,7 @@ import { compareSeconds } from './geometry';
 
 // Q: what's still fun to do?
 // A: make the zoom look as artifact-free as possible. at this point, that means adding visible crossfading sub-seconds here, and having lower-res seconds able to draw partials down to next 2 higher resolutions. that should probably make it all look pretty seamless
-// TODO: geoSecond should be all we actually ever need, i think... right? maybe?
-export const canvasRenderer = function(geoSecond, width, height) {
+export const canvasRenderer = function(geo, width, height) {
   // courtesy of https://github.com/observablehq/stdlib/blob/7f0f870/src/dom/context2d.js
   // for tips on dpi, see https://talk.observablehq.com/t/dom-context2d-vs-dom-canvas-what-am-i-doing-wrong/3836
   function context2d(width, height, dpi) {
@@ -21,15 +20,16 @@ export const canvasRenderer = function(geoSecond, width, height) {
   // TODO: this width/height needs to be able to change dynamically when the user resizes the display area
   const context = context2d(width, height)
 
-  function draw(geo, geoSub, subOpacity, visibleSecs, visibleSubSecs, nowSec, curTransform) {
+  function draw(_geo, _geoSub, subOpacity, visibleSecs, visibleSubSecs, nowSec, curTransform) {
     context.clearRect(0, 0, width, height);
-    // context.fillStyle = 'yellow'
-    // context.fillRect(0, 0, width, height)
-    let tallyWidth = curTransform.k * geo.baseDim.width
-    let tallyHeight = curTransform.k * geo.baseDim.height
-    const hue = curTransform.k * 100 // TODO: something log-scale that works better than this
+    if (visibleSecs.length == 0) return
+
+    const dim = geo.dimFor(visibleSecs[0])
+    const tallyWidth = curTransform.k * dim.width
+    const tallyHeight = curTransform.k * dim.height
+    const hue = curTransform.k * 1000 // TODO: something log-scale that works better than this
     const fullTallyStyle = `hsl(${hue},100%,50%)`
-    const emptyTallyStyle = 'blue'
+    const emptyTallyStyle = 'lightgray'
     for (const sec of visibleSecs) {
       const l = geo.locationOf(sec)
       const x = curTransform.applyX(l.x)
@@ -43,17 +43,17 @@ export const canvasRenderer = function(geoSecond, width, height) {
         for (let i = sec.length + 1; i <= nowSec.length; i++) {
           let previousFullTallySec = nowSec.slice(0, i)
           previousFullTallySec[previousFullTallySec.length-1]-- // TODO: handle when it started at 0
-          finerTallies.push(geoSecond.locationOf(previousFullTallySec))
+          finerTallies.push(geo.locationOf(previousFullTallySec))
         }
         const bottomRight = (t) => ({x: curTransform.applyX(t.x + t.w), y: curTransform.applyY(t.y + t.h)})
         const byX = (pt1, pt2) => pt1.x - pt2.x
         const brs = finerTallies.map(bottomRight).sort(byX)
-        console.log("BRS: ", brs)
+        // console.log("BRS: ", brs)
 
         // TODO: ensure this does the right thing for edge cases, e.g. nowSec = [13, 70, 20, 8, 0, 54, 24, 6, 7, 12, 5] -- that 6 for Days puts us at the bottom of a week columnTally, and we draw the path along the bottom edge of the tally.  this might cause problems once we try to fill the empty part.  (or it might not!)  Also 0's in there might cause problems (almost certainly will).
         if (brs.length) {
           const divisionPts = []
-          if (geo.baseDim.axis === 'x') {
+          if (dim.axis === 'x') {
             divisionPts.push([x, brs[0].y])
           }
           divisionPts.push([brs[0].x, brs[0].y])
@@ -61,24 +61,22 @@ export const canvasRenderer = function(geoSecond, width, height) {
             divisionPts.push([brs[i-1].x, brs[i].y])
             divisionPts.push([brs[i].x, brs[i].y])
           }
-          if (geo.baseDim.axis === 'y') {
+          if (dim.axis === 'y') {
             divisionPts.push([brs[brs.length - 1].x, y])
           }
 
-          const tWidth = curTransform.k * l.w
-          const tHeight = curTransform.k * l.h
           let filledPart = new Path2D()
           let emptyPart = new Path2D()
-          if (geo.baseDim.axis === 'x') {
-            filledPart.moveTo(x + tWidth, y)
+          if (dim.axis === 'x') {
+            filledPart.moveTo(x + tallyWidth, y)
             filledPart.lineTo(x, y)
-            emptyPart.moveTo(x + tWidth, y + tHeight)
-            emptyPart.lineTo(x, y + tHeight)
+            emptyPart.moveTo(x + tallyWidth, y + tallyHeight)
+            emptyPart.lineTo(x, y + tallyHeight)
           } else {
             filledPart.moveTo(x, y)
-            filledPart.lineTo(x, y + tHeight)
-            emptyPart.moveTo(x + tWidth, y)
-            emptyPart.lineTo(x + tWidth, y + tHeight)
+            filledPart.lineTo(x, y + tallyHeight)
+            emptyPart.moveTo(x + tallyWidth, y)
+            emptyPart.lineTo(x + tallyWidth, y + tallyHeight)
           }
           for (let pt of divisionPts) {
             filledPart.lineTo(...pt)
@@ -92,12 +90,10 @@ export const canvasRenderer = function(geoSecond, width, height) {
           context.fillStyle = emptyTallyStyle
           context.fillRect(x, y, tallyWidth, tallyHeight)
         }
-      }
-      else if (nowComp > 0) {
+      } else if (nowComp > 0) {
         context.fillStyle = emptyTallyStyle
         context.fillRect(x, y, tallyWidth, tallyHeight)
-      }
-      else {
+      } else {
         context.fillStyle = fullTallyStyle
         context.fillRect(x, y, tallyWidth, tallyHeight)
       }

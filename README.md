@@ -42,6 +42,7 @@ Also worth trying: `dokku repo:purge-cache <app>` for each app on the server
 - [ ] landmarks! it's time! figure out how they should look and start inserting some!
 - [ ] on touch devices, the thing gets confused about whether you're trying to pinch-zoom the SVG or the whole page. set the page attributes to make it not scalable. and while you're fixing the page, set a better title and favicon
 - [x] a FPS plot that shows a window of the last several seconds
+- [ ] datestamp labels (on hover? but what about mobile?) -- see https://stackoverflow.com/questions/3768565/drawing-an-svg-file-on-a-html5-canvas
 
 ## Notes
 

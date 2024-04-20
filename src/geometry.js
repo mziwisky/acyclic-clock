@@ -75,6 +75,10 @@ export class Geometry {
     return this.#dims[0]
   }
 
+  dimFor(sec) {
+    return this.#dims[sec.length - 1]
+  }
+
   valueOfSecond(sec) {
     const len = sec.length
     let result = 0
