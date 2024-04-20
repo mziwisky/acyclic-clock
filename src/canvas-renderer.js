@@ -96,25 +96,44 @@ export const canvasRenderer = function(geoSecond, width, height) {
         console.log("BRS: ", brs)
 
         // TODO: ensure this does the right thing for edge cases, e.g. nowSec = [13, 70, 20, 8, 0, 54, 24, 6, 7, 12, 5] -- that 6 for Days puts us at the bottom of a week columnTally, and we draw the path along the bottom edge of the tally.  this might cause problems once we try to fill the empty part.  (or it might not!)  Also 0's in there might cause problems (almost certainly will).
-        // TODO: figure out why this absolutely tanks performance.  dammit.  MAYBE it won't once we change from this cyan stroke to a pair of filled polygons.  but i guess if i had to, i could do this with overlapping fillRects.  fill to each bottom-right corner we just found.  actually that's not a bad idea at all now is it...
         if (brs.length) {
-          let division = new Path2D()
+          const divisionPts = []
           if (geo.baseDim.axis === 'x') {
-            division.moveTo(x, brs[0].y)
-            division.lineTo(brs[0].x, brs[0].y)
-          } else {
-            division.moveTo(brs[0].x, brs[0].y)
+            divisionPts.push([x, brs[0].y])
           }
+          divisionPts.push([brs[0].x, brs[0].y])
           for (let i = 1; i < brs.length; i++) {
-            division.lineTo(brs[i-1].x, brs[i].y)
-            division.lineTo(brs[i].x, brs[i].y)
+            divisionPts.push([brs[i-1].x, brs[i].y])
+            divisionPts.push([brs[i].x, brs[i].y])
           }
           if (geo.baseDim.axis === 'y') {
-            division.lineTo(brs[brs.length - 1].x, y)
+            divisionPts.push([brs[brs.length - 1].x, y])
           }
-          context.strokeStyle = "cyan"
-          context.lineWidth = 1
-          context.stroke(division)
+
+          // TODO: figure out why this absolutely tanks performance.  dammit.  i guess if i had to, i could do this with overlapping fillRects.  fill to each bottom-right corner we just found.  actually that's not a bad idea at all now is it...
+          const tWidth = curTransform.k * l.w
+          const tHeight = curTransform.k * l.h
+          let filledPart = new Path2D()
+          let emptyPart = new Path2D()
+          if (geo.baseDim.axis === 'x') {
+            filledPart.moveTo(x + tWidth, y)
+            filledPart.lineTo(x, y)
+            emptyPart.moveTo(x + tWidth, y + tHeight)
+            emptyPart.lineTo(x, y + tHeight)
+          } else {
+            filledPart.moveTo(x, y)
+            filledPart.lineTo(x, y + tHeight)
+            emptyPart.moveTo(x + tWidth, y)
+            emptyPart.lineTo(x + tWidth, y + tHeight)
+          }
+          for (let pt of divisionPts) {
+            filledPart.lineTo(...pt)
+            emptyPart.lineTo(...pt)
+          }
+          context.fillStyle = "orange"
+          context.fill(filledPart)
+          context.fillStyle = "green"
+          context.fill(emptyPart)
         }
       }
       else if (nowComp > 0) {
