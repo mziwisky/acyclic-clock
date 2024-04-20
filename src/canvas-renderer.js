@@ -36,61 +36,16 @@ export const canvasRenderer = function(geoSecond, width, height) {
       const y = curTransform.applyY(l.y)
       const nowComp = compareSeconds(sec, nowSec)
       if (nowComp === 0) {
-        // THIS IS THE OLD APPROACH which basically works, but has artifacts, so i'm leaving it in as i work out the new appraoch below
-        //
-        // TODO: calling compareSeconds and then calling getFillProportions is obviously wasteful, because the latter calls the former anyway.
-        const proportions = geoSecond.getFillProportions(sec, nowSec)
-        // TODO: i think a proportions approach is somehow flawed.  other ideas:
-        //  - actually drawing finer-resolution tallies (plus pre-padding!)
-        //    - might be a quick-ish way to accomplish this one by drawing ALL super-tallies (plus pre-padding) rather than just the ones nearest the frontier
-        //  - figuring out the shape of this tally as a pair of polygons and drawing those
-        let axis = geo.baseDim.axis
-        let curGeo = geo
-        let xOffset = 0, yOffset = 0
-        // if (proportions.length === 2) debugger
-        console.log(`FULL TALLY: ${x}, ${y}, ${tallyWidth}, ${tallyHeight}`)
-        for (const [idx, prop] of proportions.entries()) {
-          const FUDGE = Math.min(idx, 1) * 0
-          const tWidth = curTransform.k * curGeo.baseDim.width
-          const tHeight = curTransform.k * curGeo.baseDim.height
-          if (axis === 'y') {
-            const r1 = [x + xOffset, y + yOffset - FUDGE, tWidth * prop, tHeight + FUDGE]
-            const r2 = [x + xOffset + tWidth * prop, y + yOffset, tWidth * (1 - prop), tHeight]
-            context.fillStyle = fullTallyStyle
-            context.fillRect(...r1)
-            context.fillStyle = emptyTallyStyle
-            context.fillRect(...r2)
-            console.log(`ySPLIT strt: ${r1}`)
-            console.log(`ySPLIT end : ${r2}`)
-            axis = 'x'
-            curGeo = curGeo.superGeo()
-            xOffset += tWidth * prop
-          } else {
-            const r1 = [x + xOffset - FUDGE, y + yOffset, tWidth + FUDGE, tHeight * prop]
-            const r2 = [x + xOffset, y + yOffset + tHeight * prop, tWidth, tHeight * (1 - prop)]
-            context.fillStyle = fullTallyStyle
-            context.fillRect(...r1)
-            context.fillStyle = emptyTallyStyle
-            context.fillRect(...r2)
-            console.log(`xSPLIT strt: ${r1}`)
-            console.log(`xSPLIT end : ${r2}`)
-            axis = 'y'
-            curGeo = curGeo.superGeo()
-            yOffset += tHeight * prop
-          }
-        }
-
-        // OK, here's the new approach -- find the dividing path that goes between the filled and empty portions of the Full Tally, and then use it to draw two polygons (the full portion and the empty portion).
+        // this is the CURRENT moment which, if we're zoomed out past the threshold that renders minutes, means we need to subdivide some tallies.
+        // we do this by finding the dividing path that goes between the filled and empty portions of the Full Tally, and then use it to draw two polygons (the filled portion and the empty portion).
         // The idea is to get the bottom right corner of each "finer tally", then sort them left-to-right, then stair-step our way through them (up,right,up,right,...)
         const finerTallies = []
         for (let i = sec.length + 1; i <= nowSec.length; i++) {
           let previousFullTallySec = nowSec.slice(0, i)
           previousFullTallySec[previousFullTallySec.length-1]-- // TODO: handle when it started at 0
-          finerTallies.push({...geoSecond.locationOf(previousFullTallySec), sec: previousFullTallySec})
-        // TODO: remove the `sec` from the above. it's just for debugging.
+          finerTallies.push(geoSecond.locationOf(previousFullTallySec))
         }
-        const bottomRight = (t) => ({x: curTransform.applyX(t.x + t.w), y: curTransform.applyY(t.y + t.h), tally: t, sec: t.sec})
-        // TODO: remove the `tally` and `sec` from the above. they're just for debugging.
+        const bottomRight = (t) => ({x: curTransform.applyX(t.x + t.w), y: curTransform.applyY(t.y + t.h)})
         const byX = (pt1, pt2) => pt1.x - pt2.x
         const brs = finerTallies.map(bottomRight).sort(byX)
         console.log("BRS: ", brs)
@@ -110,7 +65,6 @@ export const canvasRenderer = function(geoSecond, width, height) {
             divisionPts.push([brs[brs.length - 1].x, y])
           }
 
-          // TODO: figure out why this absolutely tanks performance.  dammit.  i guess if i had to, i could do this with overlapping fillRects.  fill to each bottom-right corner we just found.  actually that's not a bad idea at all now is it...
           const tWidth = curTransform.k * l.w
           const tHeight = curTransform.k * l.h
           let filledPart = new Path2D()
@@ -130,10 +84,13 @@ export const canvasRenderer = function(geoSecond, width, height) {
             filledPart.lineTo(...pt)
             emptyPart.lineTo(...pt)
           }
-          context.fillStyle = "orange"
+          context.fillStyle = fullTallyStyle
           context.fill(filledPart)
-          context.fillStyle = "green"
+          context.fillStyle = emptyTallyStyle
           context.fill(emptyPart)
+        } else {
+          context.fillStyle = emptyTallyStyle
+          context.fillRect(x, y, tallyWidth, tallyHeight)
         }
       }
       else if (nowComp > 0) {
