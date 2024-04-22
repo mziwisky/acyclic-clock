@@ -72,6 +72,7 @@ const doDatThang = function() {
   let visibleSecs = []
   let visibleSubSecs = []
   const unixEpoch = [13,70,20,5,30,0,0,0,0,0,0]
+  // TODO: choose an epoch that makes the current time fall where one would expect it to fall, i.e. on the correct day of the week and week of the year and year of the century/millenium
 
   // TODO: might eventually need general functions for translating (both ways?) between Date and second-as-array
   const calcNowSec = () => geoSecond.sum(unixEpoch, [Math.floor(Date.now() / 1000)])

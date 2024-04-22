@@ -92,6 +92,20 @@ export const canvasRenderer = function(geo, width, height) {
         context.fillStyle = fullTallyStyle
         context.fillRect(x, y, tallyWidth, tallyHeight)
       }
+
+      context.save()
+      const lineHeight = 0.6 * (dim.axis == 'x' ? tallyWidth : tallyHeight)
+      context.fillStyle = 'black'
+      context.font = `${lineHeight}px serif`
+      context.textAlign = 'center'
+      if (dim.axis == 'x') {
+        context.translate(x + tallyWidth/2 + lineHeight/2, y + tallyHeight/2)
+        context.rotate(-Math.PI / 2)
+      } else {
+        context.translate(x + tallyWidth/2, y + tallyHeight/2 + lineHeight/2)
+      }
+      context.fillText(sec, 0, 0)
+      context.restore()
     }
     // TODO: subsecs, text labels
   }
