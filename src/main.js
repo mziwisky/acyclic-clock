@@ -35,9 +35,9 @@ import { svgRenderer } from './svg-renderer'
 import { canvasRenderer } from './canvas-renderer'
 import { fpsToggler } from './performance'
 
-// TODO: this width/height global variable usage is going to bite eventually
-const width = 600
-const height = 600
+
+let width = window.innerWidth
+let height = window.innerHeight
 
 // e9Width = e7Width = 2595632000
 // e9Height = e7Height * 100 + e7PadY * 99 = 150743230000
@@ -64,7 +64,7 @@ const geoSecond = geo
 
 const doDatThang = function() {
   // let { zoomable, node, draw } = svgRenderer(width, height)
-  let { zoomable, node, draw } = canvasRenderer(geo, width, height)
+  let { zoomable, node, draw, resize: rendererResize } = canvasRenderer(geo, width, height)
 
   zoomable.attr('class', 'theAction')
 
@@ -72,8 +72,6 @@ const doDatThang = function() {
   let visibleSecs = []
   let visibleSubSecs = []
   const unixEpoch = [13,70,20,5,30,0,0,0,0,0,0]
-  // TODO: less-granular geometries can be aware of more-granular ones so they can be drawn with semi-filled parts.  maybe it's time to put the drawing logic in Geometry?  or maybe not.
-
 
   // TODO: might eventually need general functions for translating (both ways?) between Date and second-as-array
   const calcNowSec = () => geoSecond.sum(unixEpoch, [Math.floor(Date.now() / 1000)])
@@ -170,7 +168,7 @@ const doDatThang = function() {
 
   function zoomed({transform}) {
     const k = transform.k
-    console.log(k)
+    // console.log(k)
     // TODO: I have a feeling i'll eventually want to make this a little more
     // sophisticated, e.g. instead of a fixed set of k-thresholds, factor in
     // the viewport size.  smaller size might mean i can get away with finer
@@ -193,8 +191,8 @@ const doDatThang = function() {
       Math.trunc(transform.invertX(width)),
       Math.trunc(transform.invertY(height)),
     ]
-    console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
-    console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
+    // console.log("P0:", p0int, geo.printableNearestSecond(...p0int))
+    // console.log("P1:", p1int, geo.printableNearestSecond(...p1int))
 
     const firstSec = geo.nearestSecond(...p0int)
     const lastSec = geo.nearestSecond(...p1int)
@@ -228,6 +226,14 @@ const doDatThang = function() {
   // TODO: set initial scale/translate to something that _includes_ initialLoc, but isn't precisely at it.
   // e.g. "truncate" to the beginning of the day, and scale appropriately to see the whole day.  that scale
   // probably depends on the dims of the viewport.
+
+  function handleResize() {
+    width = window.innerWidth
+    height = window.innerHeight
+    rendererResize(width, height)
+    zoomed({transform: curTransform})
+  }
+  window.addEventListener("resize", handleResize);
 
   return node;
 }
