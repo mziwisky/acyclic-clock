@@ -29,7 +29,10 @@ git push dokku HEAD:main
 
 ### Dealing with a full disk
 
-If the deploy fails due to the host running out of space (e.g. an immediate "error: remote unpack failed: unable to create temporary object directory", or a later "/home/dokku/.basher/bash: line 1: main: command not found", or perhaps some other error during the remote build), ssh in and do `docker image prune -a` and try again.
+If the deploy fails due to the host running out of space (e.g. an immediate
+"error: remote unpack failed: unable to create temporary object directory", or
+a later "/home/dokku/.basher/bash: line 1: main: command not found", or perhaps
+some other error during the remote build), ssh in and do `docker system prune --volumes` and try again.
 
 Also worth trying: `dokku repo:purge-cache <app>` for each app on the server
 
