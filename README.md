@@ -70,6 +70,7 @@ Also worth trying: `dokku repo:purge-cache <app>` for each app on the server
 - allthetime.space
 - clock.quest
 - mortality.observer
+- big clock
 
 ### Ideas
 
@@ -86,6 +87,10 @@ button to snap (or actually fluidly zoom/pan) you back to the starting view, i.e
 use a gradient for the fill, so different eras are different colors.
 
 Maybe it's more playful, e.g. animation of a robot drawing the seconds with chalk
+
+One "mode" (at /age or /lifespan or /lifetime or /you) prompts you to enter your birthdate. then it renders a view of just 80 years. you can see how far along you are, how much time you have left. if you zoom in, you see that the seconds are ticking. maybe they're labeled with how much time you have left ("50 years, 22 weeks, 3 days, 20 hours, 5 minutes, 10 seconds left"). if you zoom out far enough, all the other tallies fade in from nothing, and maybe your lifespan remains a differen color to give you an idea of how insignificant it is. love this, actually. maybe this is the default mode, and the regular clock is a secondary mode. maybe instead of a hard 80 years, the not-yet-counted tallies fade towards the background color starting at 80 years, ending at 100 or whatever. yeah that seems good. also if you're older than 80, it says "Y years, W weeks, D days, H hours, M minutes, S seconds beyond expectation" or whatever. yeah, i love this. gets it back to my original vision/intent. and it can and will still have landmarks in the past, which show up when you zoom out far enough. but it makes all of that feel more like an easter egg. `everysecondcounts.fyi` is a decent fit for this. or any of the death ones.
+
+Legend on screen showing all landmarks that are within the current viewport. Maybe click to highlight them.
 
 ### List of landmarks
 
